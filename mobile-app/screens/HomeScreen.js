@@ -75,7 +75,18 @@ export default function HomeScreen({ navigation }) {
     return (
       <TouchableOpacity 
         style={styles.entryItem}
-        onPress={() => navigation.navigate('Edit', { date: item.date.split('T')[0] })}
+        onPress={() => {
+          const [datePart] = item.date.split('T');
+          const today = new Date().toISOString().split('T')[0];
+          
+          if (datePart === today) {
+            // If it's today's entry, navigate to Today tab
+            navigation.navigate('Today');
+          } else {
+            // If it's a past entry, navigate to Edit screen with date param
+            navigation.navigate('ViewEntry', { date: datePart });
+          }
+        }}
       >
         <Text style={styles.date}>
           {formatDate(item.date).toLocaleDateString('en-US', {

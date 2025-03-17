@@ -14,46 +14,36 @@ import { API_URL } from '../config';
 import axios from 'axios';
 import { generateJournalSummary } from '../services/aiService';
 
-export default function EditScreen({ route, isToday = false }) {
+export default function EditScreen({ route, navigation }) {
   const [snippetInput, setSnippetInput] = useState('');
   const [snippets, setSnippets] = useState([]);
   const [aiSummary, setAiSummary] = useState('');
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'snippets'
   const [isGenerating, setIsGenerating] = useState(false);
   
-  const date = isToday ? 
-    new Date().toISOString().split('T')[0] : 
-    route?.params?.date;
+  // Check if we're viewing a past entry
+  const isPastEntry = route?.params?.date !== undefined;
+  const date = isPastEntry ? route.params.date : new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     fetchEntry();
-  }, [date]);
+    // Add listener for when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchEntry();
+    });
+    return unsubscribe;
+  }, [navigation, date]);
 
   const fetchEntry = async () => {
-    // For Today's view, start with empty content
-    if (isToday) {
-      setSnippets([]);
-      setAiSummary('');
-      return;
-    }
-
     try {
       const response = await axios.get(`${API_URL}/entries/${date}`);
       if (response.data.content) {
         try {
-          // Try to parse as JSON (new format)
           const data = JSON.parse(response.data.content);
           setSnippets(data.snippets || []);
           setAiSummary(data.aiSummary || '');
         } catch (parseError) {
-          // If parsing fails, treat it as old format (plain text)
-          const legacySnippet = {
-            id: date,
-            text: response.data.content,
-            timestamp: `${date}T00:00:00.000Z`,
-          };
-          setSnippets([legacySnippet]);
-          setAiSummary(response.data.content);
+          console.error('Error parsing entry:', parseError);
         }
       }
     } catch (error) {
@@ -105,6 +95,9 @@ export default function EditScreen({ route, isToday = false }) {
       
       // Update the AI summary in UI
       setAiSummary(newAiSummary);
+
+      // Trigger a refresh of the HomeScreen by updating a shared state or using events
+      // This could be done through context, redux, or event emitter
     } catch (error) {
       console.error('Error saving snippet:', error);
     }
@@ -130,8 +123,8 @@ export default function EditScreen({ route, isToday = false }) {
     </Pressable>
   );
 
-  if (!isToday) {
-    // View mode for past entries
+  // If it's a past entry, render a read-only view
+  if (isPastEntry) {
     return (
       <View style={styles.container}>
         <View style={styles.tabContainer}>
@@ -153,14 +146,7 @@ export default function EditScreen({ route, isToday = false }) {
               style={styles.summaryScroll}
               showsVerticalScrollIndicator={true}
             >
-              {isGenerating ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#333" />
-                  <Text style={styles.loadingText}>Generating AI Summary...</Text>
-                </View>
-              ) : (
-                <Text style={styles.summaryText}>{aiSummary}</Text>
-              )}
+              <Text style={styles.summaryText}>{aiSummary}</Text>
             </ScrollView>
           </View>
         ) : (
@@ -175,6 +161,7 @@ export default function EditScreen({ route, isToday = false }) {
     );
   }
 
+  // Original render for today's entry with input field
   return (
     <View style={styles.container}>
       <View style={styles.inputContainer}>
