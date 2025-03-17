@@ -9,6 +9,7 @@ import google.generativeai as genai
 from sample_data import MORNING_ACTIVITIES, AFTERNOON_ACTIVITIES, EVENING_ACTIVITIES
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -36,6 +37,95 @@ model = genai.GenerativeModel('gemini-pro')
 class JournalEntry(BaseModel):
     content: str
     date: str
+
+# Add these constants near the top
+DATA_DIR = Path("data")
+ENTRIES_FILE = DATA_DIR / "entries.json"
+
+# Add these storage functions
+def initialize_storage():
+    DATA_DIR.mkdir(exist_ok=True)
+    if not ENTRIES_FILE.exists():
+        ENTRIES_FILE.write_text("[]")
+
+def load_entries():
+    try:
+        return json.loads(ENTRIES_FILE.read_text())
+    except:
+        return []
+
+def save_entries(entries):
+    ENTRIES_FILE.write_text(json.dumps(entries, indent=2))
+
+# Update initialize_sample_entries
+async def initialize_sample_entries():
+    # Only initialize if no entries exist
+    entries = load_entries()
+    if not entries:
+        today = datetime.now()
+        for i in range(10):  # Generate entries for the past 10 days
+            entry_date = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+            
+            # Make the entry from 3 days ago extra long
+            if i == 3:
+                entry_content = generate_long_day_snippets(entry_date)
+            else:
+                entry_content = generate_day_snippets(entry_date)
+                
+            entries.append({
+                "content": json.dumps(entry_content),
+                "date": f"{entry_date}T00:00:00.000Z"
+            })
+        
+        save_entries(entries)
+
+# Update the API endpoints to use file storage
+@app.get("/entries", response_model=List[JournalEntry])
+async def get_entries():
+    return load_entries()
+
+@app.get("/entries/{date}")
+async def get_entry(date: str):
+    entries = load_entries()
+    entry = next((entry for entry in entries if entry["date"].startswith(date)), None)
+    if not entry:
+        return {"content": "", "date": date}
+    return entry
+
+@app.put("/entries/{date}")
+async def update_entry(date: str, entry: JournalEntry):
+    try:
+        entries = load_entries()
+        content_data = json.loads(entry.content)
+        
+        # If there are snippets and no aiSummary, generate one
+        if 'snippets' in content_data and ('aiSummary' not in content_data or not content_data['aiSummary']):
+            ai_summary = await generate_ai_summary(content_data['snippets'])
+            content_data['aiSummary'] = ai_summary
+            entry.content = json.dumps(content_data)
+
+        # Find and update existing entry
+        entry_updated = False
+        for i, existing_entry in enumerate(entries):
+            if existing_entry["date"].startswith(date):
+                entries[i] = entry.dict()
+                entry_updated = True
+                break
+        
+        # If no existing entry, append new one
+        if not entry_updated:
+            entries.append(entry.dict())
+        
+        # Save the updated entries
+        save_entries(entries)
+        return {"message": "Entry updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.on_event("startup")
+async def startup_event():
+    initialize_storage()
+    await initialize_sample_entries()
 
 def generate_day_snippets(date_str):
     date = datetime.strptime(date_str, "%Y-%m-%d")
@@ -83,7 +173,7 @@ def generate_day_snippets(date_str):
     # Sort snippets by timestamp
     snippets.sort(key=lambda x: x["timestamp"])
     
-    # Generate AI summary
+    # For sample data, just concatenate the snippets
     summary = "Today was a mix of activities. " + " ".join([s["text"] for s in snippets])
     
     return {
@@ -133,57 +223,13 @@ def generate_long_day_snippets(date_str):
     # Sort snippets by timestamp
     snippets.sort(key=lambda x: x["timestamp"])
     
-    # Generate a more detailed AI summary
-    summary = """Today was a packed day filled with various activities and accomplishments. 
-The morning started early with physical activity and self-care routines, followed by productive work sessions and team interactions. 
-The afternoon was particularly busy with meetings and project work, but I managed to maintain focus and make significant progress. 
-Despite the heavy workload, I took short breaks to stay refreshed and maintain productivity.
-The evening wound down nicely with a mix of personal activities and home tasks, helping create a good work-life balance.
-
-Overall, it was a well-balanced day with good productivity and personal time management. The variety of activities helped keep the energy levels up throughout the day."""
-
+    # For sample data, create a more detailed concatenated summary
+    summary = """Today was a packed day filled with various activities. """ + " ".join([s["text"] for s in snippets])
+    
     return {
         "snippets": snippets,
         "aiSummary": summary
     }
-
-# Initialize with sample entries
-journal_entries = []
-
-def initialize_sample_entries():
-    today = datetime.now()
-    for i in range(10):  # Generate entries for the past 10 days
-        entry_date = (today - timedelta(days=i)).strftime("%Y-%m-%d")
-        
-        # Make the entry from 3 days ago extra long
-        if i == 3:
-            entry_content = generate_long_day_snippets(entry_date)
-        else:
-            entry_content = generate_day_snippets(entry_date)
-            
-        journal_entries.append({
-            "content": json.dumps(entry_content),
-            "date": f"{entry_date}T00:00:00.000Z"
-        })
-
-# Initialize sample entries when the server starts
-initialize_sample_entries()
-
-@app.get("/entries", response_model=List[JournalEntry])
-async def get_entries():
-    return journal_entries
-
-@app.post("/entries")
-async def create_entry(entry: JournalEntry):
-    journal_entries.append(entry.dict())
-    return {"message": "Entry created successfully"}
-
-@app.get("/entries/{date}")
-async def get_entry(date: str):
-    entry = next((entry for entry in journal_entries if entry["date"].startswith(date)), None)
-    if not entry:
-        return {"content": "", "date": date}
-    return entry
 
 async def generate_ai_summary(snippets):
     try:
@@ -202,28 +248,6 @@ async def generate_ai_summary(snippets):
         print(f"Error generating AI summary: {e}")
         # Fallback to concatenated snippets if AI fails
         return '\n\n'.join([s['text'] for s in sorted_snippets])
-
-@app.put("/entries/{date}")
-async def update_entry(date: str, entry: JournalEntry):
-    try:
-        content_data = json.loads(entry.content)
-        if 'snippets' in content_data:
-            # Generate AI summary for the snippets
-            ai_summary = await generate_ai_summary(content_data['snippets'])
-            content_data['aiSummary'] = ai_summary
-            entry.content = json.dumps(content_data)
-
-        # Find and update existing entry for the date
-        for i, existing_entry in enumerate(journal_entries):
-            if existing_entry["date"].startswith(date):
-                journal_entries[i] = entry.dict()
-                return {"message": "Entry updated successfully"}
-        
-        # If no existing entry, create new one
-        journal_entries.append(entry.dict())
-        return {"message": "Entry created successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
