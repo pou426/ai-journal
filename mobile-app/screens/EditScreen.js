@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { API_URL } from '../config';
 import axios from 'axios';
-import { generateJournalSummary } from '../services/aiService';
+import { supabase } from '../utils/supabase';
 
 export default function EditScreen({ route, navigation }) {
   const [snippetInput, setSnippetInput] = useState('');
@@ -20,95 +20,98 @@ export default function EditScreen({ route, navigation }) {
   const [aiSummary, setAiSummary] = useState('');
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'snippets'
   const [isGenerating, setIsGenerating] = useState(false);
+  const [userId, setUserId] = useState(null);
   
   // Check if we're viewing a past entry
   const isPastEntry = route?.params?.date !== undefined;
   const date = isPastEntry ? route.params.date : new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    fetchEntry();
-    // Add listener for when screen comes into focus
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchEntry();
-    });
-    return unsubscribe;
-  }, [navigation, date]);
+    getCurrentUser();
+  }, []);
 
-  const fetchEntry = async () => {
+  useEffect(() => {
+    if (userId) {
+      fetchEntry();
+      // Add listener for when screen comes into focus
+      const unsubscribe = navigation.addListener('focus', () => {
+        fetchEntry();
+      });
+      return unsubscribe;
+    }
+  }, [navigation, date, userId]);
+
+  const getCurrentUser = async () => {
     try {
-      const response = await axios.get(`${API_URL}/entries/${date}`);
-      if (response.data.content) {
-        try {
-          const data = JSON.parse(response.data.content);
-          setSnippets(data.snippets || []);
-          setAiSummary(data.aiSummary || '');
-        } catch (parseError) {
-          console.error('Error parsing entry:', parseError);
-        }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
       }
     } catch (error) {
-      console.error('Error fetching entry:', error);
+      console.error('Error getting current user:', error);
     }
   };
 
-  const generateAISummary = async (newSnippets) => {
-    setIsGenerating(true);
+  const fetchEntry = async () => {
+    if (!userId) return;
+    
     try {
-      const summary = await generateJournalSummary(newSnippets);
-      setIsGenerating(false);
-      return summary;
+      // Fetch snippets for the day
+      const snippetsResponse = await axios.get(`${API_URL}/snippets/${userId}`);
+      const daySnippets = snippetsResponse.data
+        .filter(s => new Date(s.created_at).toISOString().split('T')[0] === date)
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Sort by timestamp ascending
+      setSnippets(daySnippets);
+
+      // Fetch journal entry for the day
+      const journalResponse = await axios.get(`${API_URL}/journals/${userId}/${date}`);
+      if (journalResponse.data) {
+        setAiSummary(journalResponse.data.entry);
+      } else {
+        // Clear the AI summary if there's no journal entry for today
+        setAiSummary('');
+      }
     } catch (error) {
-      console.error('Error generating AI summary:', error);
-      setIsGenerating(false);
-      // Return a fallback summary in case of error
-      return newSnippets.map(s => s.text).join('\n\n');
+      console.error('Error fetching entry:', error);
+      // Clear the AI summary on error
+      setAiSummary('');
     }
   };
 
   const addSnippet = async () => {
-    if (!snippetInput.trim()) return;
+    if (!snippetInput.trim() || !userId) return;
 
-    const newSnippet = {
-      id: Date.now().toString(),
-      text: snippetInput.trim(),
-      timestamp: new Date().toISOString(),
-    };
-
-    const newSnippets = [...snippets, newSnippet];
-    
-    // First update UI with the new snippet
-    setSnippets(newSnippets);
-    setSnippetInput('');
-    
+    setIsGenerating(true);
     try {
-      // Generate AI summary
-      const newAiSummary = await generateAISummary(newSnippets);
-      
-      // Update the backend with both new snippet and AI summary
-      await axios.put(`${API_URL}/entries/${date}`, {
-        content: JSON.stringify({
-          snippets: newSnippets,
-          aiSummary: newAiSummary,
-        }),
-        date: `${date}T00:00:00.000Z`,
+      // Use the new endpoint that handles both snippet creation and AI summary
+      const response = await axios.post(`${API_URL}/snippets/with-summary`, {
+        entry: snippetInput.trim(),
+        user_id: userId
       });
       
-      // Update the AI summary in UI
-      setAiSummary(newAiSummary);
-
-      // Trigger a refresh of the HomeScreen by updating a shared state or using events
-      // This could be done through context, redux, or event emitter
+      // Update UI with the new journal entry
+      setAiSummary(response.data.entry);
+      setSnippetInput('');
+      
+      // Refresh snippets
+      const snippetsResponse = await axios.get(`${API_URL}/snippets/${userId}`);
+      const daySnippets = snippetsResponse.data.filter(s => 
+        new Date(s.created_at).toISOString().split('T')[0] === date
+      );
+      setSnippets(daySnippets);
     } catch (error) {
       console.error('Error saving snippet:', error);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   const renderSnippet = ({ item }) => (
     <View style={styles.snippetItem}>
       <Text style={styles.snippetTime}>
-        {new Date(item.timestamp).toLocaleTimeString()}
+        {new Date(item.created_at).toLocaleTimeString()}
       </Text>
-      <Text style={styles.snippetText}>{item.text}</Text>
+      <Text style={styles.snippetText}>{item.entry}</Text>
     </View>
   );
 

@@ -3,23 +3,44 @@ import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl } fr
 import { API_URL } from '../config';
 import axios from 'axios';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { supabase } from '../utils/supabase';
 
 export default function HomeScreen({ navigation }) {
   const [entries, setEntries] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
-    fetchEntries();
-    // Add listener for when screen comes into focus
-    const unsubscribe = navigation.addListener('focus', () => {
+    getCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
       fetchEntries();
-    });
-    return unsubscribe;
-  }, [navigation]);
+      // Add listener for when screen comes into focus
+      const unsubscribe = navigation.addListener('focus', () => {
+        fetchEntries();
+      });
+      return unsubscribe;
+    }
+  }, [navigation, userId]);
+
+  const getCurrentUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Error getting current user:', error);
+    }
+  };
 
   const fetchEntries = async () => {
+    if (!userId) return;
+    
     try {
-      const response = await axios.get(`${API_URL}/entries`);
+      const response = await axios.get(`${API_URL}/journals/${userId}`);
       // Sort entries by date in descending order
       const sortedEntries = response.data.sort((a, b) => 
         new Date(b.date) - new Date(a.date)
@@ -38,23 +59,13 @@ export default function HomeScreen({ navigation }) {
 
   const renderItem = ({ item }) => {
     const formatDate = (dateString) => {
-      const [datePart] = dateString.split('T');
-      const [year, month, day] = datePart.split('-').map(Number);
-      return new Date(year, month - 1, day);
-    };
-
-    const getPreviewContent = (content) => {
-      try {
-        const data = JSON.parse(content);
-        // Always return AI summary if available, without marking it as AI
-        if (data.aiSummary) {
-          return data.aiSummary;
-        }
-        // Fall back to snippets if no AI summary
-        return data.snippets.map(s => s.text).join('\n');
-      } catch (parseError) {
-        return content;
-      }
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
     };
 
     const truncateContent = (text) => {
@@ -70,45 +81,32 @@ export default function HomeScreen({ navigation }) {
       return truncated;
     };
 
-    const previewContent = getPreviewContent(item.content);
-
     return (
       <TouchableOpacity 
         style={styles.entryItem}
         onPress={() => {
-          const [datePart] = item.date.split('T');
           const today = new Date().toISOString().split('T')[0];
           
-          if (datePart === today) {
+          if (item.date === today) {
             // If it's today's entry, navigate to Today tab
             navigation.navigate('Today');
           } else {
             // If it's a past entry, navigate to Edit screen with date param
-            navigation.navigate('ViewEntry', { date: datePart });
+            navigation.navigate('ViewEntry', { date: item.date });
           }
         }}
       >
         <Text style={styles.date}>
-          {formatDate(item.date).toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })}
+          {formatDate(item.date)}
         </Text>
         <Text 
           style={styles.content}
           numberOfLines={3}
         >
-          {truncateContent(previewContent)}
+          {truncateContent(item.entry)}
         </Text>
       </TouchableOpacity>
     );
-  };
-
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
   };
 
   return (
@@ -116,7 +114,7 @@ export default function HomeScreen({ navigation }) {
       <FlatList
         data={entries}
         renderItem={renderItem}
-        keyExtractor={(item) => item.date}
+        keyExtractor={(item) => `${item.date}-${item.id}`}
         style={styles.list}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

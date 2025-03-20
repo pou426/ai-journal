@@ -1,18 +1,27 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime, timedelta
-from typing import List
+from datetime import datetime, timedelta, date
+from typing import List, Optional
 import json
 import random
 import google.generativeai as genai
-from sample_data import MORNING_ACTIVITIES, AFTERNOON_ACTIVITIES, EVENING_ACTIVITIES
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from supabase import create_client, Client
+import uuid
 
 # Load environment variables
 load_dotenv()
+
+# Supabase configuration
+SUPABASE_URL = os.getenv('SUPABASE_URL')
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
+if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are not set")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 app = FastAPI()
 
@@ -31,223 +40,157 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable is not set")
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Data model
-class JournalEntry(BaseModel):
-    content: str
-    date: str
+# Data models
+class Snippet(BaseModel):
+    entry: str
+    user_id: uuid.UUID
 
-# Add these constants near the top
-DATA_DIR = Path("data")
-ENTRIES_FILE = DATA_DIR / "entries.json"
+class Journal(BaseModel):
+    entry: str
+    date: date
+    user_id: uuid.UUID
 
-# Add these storage functions
-def initialize_storage():
-    DATA_DIR.mkdir(exist_ok=True)
-    if not ENTRIES_FILE.exists():
-        ENTRIES_FILE.write_text("[]")
+class SnippetResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    created_at: datetime
+    entry: str
 
-def load_entries():
+class JournalResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    date: date
+    entry: str
+
+# Snippets endpoints
+@app.post("/snippets", response_model=SnippetResponse)
+async def create_snippet(snippet: Snippet):
     try:
-        return json.loads(ENTRIES_FILE.read_text())
-    except:
-        return []
-
-def save_entries(entries):
-    ENTRIES_FILE.write_text(json.dumps(entries, indent=2))
-
-# Update initialize_sample_entries
-async def initialize_sample_entries():
-    # Only initialize if no entries exist
-    entries = load_entries()
-    if not entries:
-        today = datetime.now()
-        for i in range(10):  # Generate entries for the past 10 days
-            entry_date = (today - timedelta(days=i)).strftime("%Y-%m-%d")
-            
-            # Make the entry from 3 days ago extra long
-            if i == 3:
-                entry_content = generate_long_day_snippets(entry_date)
-            else:
-                entry_content = generate_day_snippets(entry_date)
-                
-            entries.append({
-                "content": json.dumps(entry_content),
-                "date": f"{entry_date}T00:00:00.000Z"
-            })
-        
-        save_entries(entries)
-
-# Update the API endpoints to use file storage
-@app.get("/entries", response_model=List[JournalEntry])
-async def get_entries():
-    return load_entries()
-
-@app.get("/entries/{date}")
-async def get_entry(date: str):
-    entries = load_entries()
-    entry = next((entry for entry in entries if entry["date"].startswith(date)), None)
-    if not entry:
-        return {"content": "", "date": date}
-    return entry
-
-@app.put("/entries/{date}")
-async def update_entry(date: str, entry: JournalEntry):
-    try:
-        entries = load_entries()
-        content_data = json.loads(entry.content)
-        
-        # If there are snippets and no aiSummary, generate one
-        if 'snippets' in content_data and ('aiSummary' not in content_data or not content_data['aiSummary']):
-            ai_summary = await generate_ai_summary(content_data['snippets'])
-            content_data['aiSummary'] = ai_summary
-            entry.content = json.dumps(content_data)
-
-        # Find and update existing entry
-        entry_updated = False
-        for i, existing_entry in enumerate(entries):
-            if existing_entry["date"].startswith(date):
-                entries[i] = entry.dict()
-                entry_updated = True
-                break
-        
-        # If no existing entry, append new one
-        if not entry_updated:
-            entries.append(entry.dict())
-        
-        # Save the updated entries
-        save_entries(entries)
-        return {"message": "Entry updated successfully"}
+        data = {
+            "user_id": str(snippet.user_id),  # Convert UUID to string
+            "entry": snippet.entry,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        result = supabase.table("snippets").insert(data).execute()
+        return result.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.on_event("startup")
-async def startup_event():
-    initialize_storage()
-    await initialize_sample_entries()
-
-def generate_day_snippets(date_str):
-    date = datetime.strptime(date_str, "%Y-%m-%d")
-    
-    # Generate 2-4 snippets per time period
-    morning_count = random.randint(1, 2)
-    afternoon_count = random.randint(1, 2)
-    evening_count = random.randint(1, 2)
-    
-    snippets = []
-    
-    # Morning snippets (7 AM - 11 AM)
-    for i in range(morning_count):
-        hour = random.randint(7, 11)
-        minute = random.randint(0, 59)
-        timestamp = date.replace(hour=hour, minute=minute).isoformat()
-        snippets.append({
-            "id": f"{date_str}-morning-{i}",
-            "text": random.choice(MORNING_ACTIVITIES),
-            "timestamp": timestamp
-        })
-    
-    # Afternoon snippets (12 PM - 5 PM)
-    for i in range(afternoon_count):
-        hour = random.randint(12, 17)
-        minute = random.randint(0, 59)
-        timestamp = date.replace(hour=hour, minute=minute).isoformat()
-        snippets.append({
-            "id": f"{date_str}-afternoon-{i}",
-            "text": random.choice(AFTERNOON_ACTIVITIES),
-            "timestamp": timestamp
-        })
-    
-    # Evening snippets (6 PM - 10 PM)
-    for i in range(evening_count):
-        hour = random.randint(18, 22)
-        minute = random.randint(0, 59)
-        timestamp = date.replace(hour=hour, minute=minute).isoformat()
-        snippets.append({
-            "id": f"{date_str}-evening-{i}",
-            "text": random.choice(EVENING_ACTIVITIES),
-            "timestamp": timestamp
-        })
-    
-    # Sort snippets by timestamp
-    snippets.sort(key=lambda x: x["timestamp"])
-    
-    # For sample data, just concatenate the snippets
-    summary = "Today was a mix of activities. " + " ".join([s["text"] for s in snippets])
-    
-    return {
-        "snippets": snippets,
-        "aiSummary": summary
-    }
-
-def generate_long_day_snippets(date_str):
-    """Generate a longer day with more snippets for testing."""
-    date = datetime.strptime(date_str, "%Y-%m-%d")
-    
-    snippets = []
-    
-    # Morning snippets (7 AM - 11 AM)
-    for i in range(7):
-        hour = random.randint(7, 11)
-        minute = random.randint(0, 59)
-        timestamp = date.replace(hour=hour, minute=minute).isoformat()
-        snippets.append({
-            "id": f"{date_str}-morning-{i}",
-            "text": MORNING_ACTIVITIES[i % len(MORNING_ACTIVITIES)],
-            "timestamp": timestamp
-        })
-    
-    # Afternoon snippets (12 PM - 5 PM)
-    for i in range(7):
-        hour = random.randint(12, 17)
-        minute = random.randint(0, 59)
-        timestamp = date.replace(hour=hour, minute=minute).isoformat()
-        snippets.append({
-            "id": f"{date_str}-afternoon-{i}",
-            "text": AFTERNOON_ACTIVITIES[i % len(AFTERNOON_ACTIVITIES)],
-            "timestamp": timestamp
-        })
-    
-    # Evening snippets (6 PM - 10 PM)
-    for i in range(6):
-        hour = random.randint(18, 22)
-        minute = random.randint(0, 59)
-        timestamp = date.replace(hour=hour, minute=minute).isoformat()
-        snippets.append({
-            "id": f"{date_str}-evening-{i}",
-            "text": EVENING_ACTIVITIES[i % len(EVENING_ACTIVITIES)],
-            "timestamp": timestamp
-        })
-    
-    # Sort snippets by timestamp
-    snippets.sort(key=lambda x: x["timestamp"])
-    
-    # For sample data, create a more detailed concatenated summary
-    summary = """Today was a packed day filled with various activities. """ + " ".join([s["text"] for s in snippets])
-    
-    return {
-        "snippets": snippets,
-        "aiSummary": summary
-    }
-
-async def generate_ai_summary(snippets):
+@app.get("/snippets/{user_id}", response_model=List[SnippetResponse])
+async def get_snippets(user_id: uuid.UUID):
     try:
-        # Sort snippets by timestamp
-        sorted_snippets = sorted(snippets, key=lambda x: x['timestamp'])
-        
-        # Create the prompt with all snippets
-        snippets_text = '\n\n'.join([s['text'] for s in sorted_snippets])
-        prompt = f"Write a personal journal entry that synthesizes these moments from my day. Write in first person and start directly with the content. Do not include any introductory text, meta-commentary, or explanations:\n\n{snippets_text}"
-
-        # Generate content using Gemini
-        response = await model.generate_content(prompt)
-        return response.text
-
+        result = supabase.table("snippets").select("*").eq("user_id", str(user_id)).order("created_at", desc=True).execute()
+        return result.data
     except Exception as e:
-        print(f"Error generating AI summary: {e}")
-        # Fallback to concatenated snippets if AI fails
-        return '\n\n'.join([s['text'] for s in sorted_snippets])
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Journals endpoints
+@app.post("/journals", response_model=JournalResponse)
+async def create_or_update_journal(journal: Journal):
+    try:
+        # Check if a journal entry exists for this date
+        existing = supabase.table("journals").select("*").eq("user_id", str(journal.user_id)).eq("date", journal.date.isoformat()).execute()
+        
+        if existing.data:
+            # Update existing journal
+            result = supabase.table("journals").update({
+                "entry": journal.entry
+            }).eq("id", existing.data[0]["id"]).execute()
+        else:
+            # Create new journal
+            data = {
+                "user_id": str(journal.user_id),  # Convert UUID to string
+                "date": journal.date.isoformat(),
+                "entry": journal.entry
+            }
+            result = supabase.table("journals").insert(data).execute()
+        
+        return result.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/journals/{user_id}/{date}", response_model=Optional[JournalResponse])
+async def get_journal(user_id: uuid.UUID, date: date):
+    try:
+        result = supabase.table("journals").select("*").eq("user_id", str(user_id)).eq("date", date.isoformat()).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/journals/{user_id}", response_model=List[JournalResponse])
+async def get_journals(user_id: uuid.UUID):
+    try:
+        result = supabase.table("journals").select("*").eq("user_id", str(user_id)).order("date", desc=True).execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/snippets/with-summary", response_model=JournalResponse)
+async def create_snippet_with_summary(snippet: Snippet):
+    try:
+        print(f"Creating snippet for user {snippet.user_id}")
+        # 1. Create the snippet
+        snippet_data = {
+            "user_id": str(snippet.user_id),  # Convert UUID to string
+            "entry": snippet.entry,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        print("Snippet data:", snippet_data)
+        snippet_result = supabase.table("snippets").insert(snippet_data).execute()
+        print("Snippet created:", snippet_result.data)
+        
+        # 2. Get all snippets for today
+        today = datetime.utcnow().date()
+        print(f"Fetching snippets for user {snippet.user_id} on {today}")
+        snippets_result = supabase.table("snippets").select("*").eq("user_id", str(snippet.user_id)).gte("created_at", today.isoformat()).order("created_at").execute()
+        print("Fetched snippets:", snippets_result.data)
+        
+        # Only generate summary and create journal if there are snippets
+        if snippets_result.data:
+            # 3. Generate AI summary using Gemini
+            snippets_text = '\n\n'.join([s['entry'] for s in snippets_result.data])
+            prompt = f"Write a personal journal entry that synthesizes these moments from my day. Write in first person and start directly with the content. Do not include any introductory text, meta-commentary, or explanations:\n\n{snippets_text}"
+            print("Generating AI summary with prompt:", prompt)
+            
+            response = model.generate_content(prompt)
+            ai_summary = response.text
+            print("Generated AI summary:", ai_summary)
+            
+            # 4. Create or update the journal entry
+            journal_data = {
+                "user_id": str(snippet.user_id),  # Convert UUID to string
+                "date": today.isoformat(),
+                "entry": ai_summary
+            }
+            print("Journal data:", journal_data)
+            
+            # Check if journal exists for today
+            existing = supabase.table("journals").select("*").eq("user_id", str(snippet.user_id)).eq("date", today.isoformat()).execute()
+            print("Existing journal:", existing.data)
+            
+            if existing.data:
+                # Update existing journal
+                journal_result = supabase.table("journals").update({
+                    "entry": ai_summary
+                }).eq("id", existing.data[0]["id"]).execute()
+            else:
+                # Create new journal
+                journal_result = supabase.table("journals").insert(journal_data).execute()
+            
+            print("Final journal result:", journal_result.data)
+            return journal_result.data[0]
+        else:
+            # If no snippets, return None or raise an error
+            raise HTTPException(status_code=400, detail="No snippets found for today")
+            
+    except Exception as e:
+        print(f"Error in create_snippet_with_summary: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
