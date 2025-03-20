@@ -1,28 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
   Text, 
-  TextInput, 
-  TouchableOpacity, 
   KeyboardAvoidingView, 
-  Platform 
+  Platform,
+  TouchableOpacity 
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Auth from '../components/Auth';
+import { supabase } from '../utils/supabase';
 
 export default function SignInScreen({ navigation }) {
-  // Pre-fill with placeholder credentials
-  const [email, setEmail] = useState('user@example.com');
-  const [password, setPassword] = useState('password');
+  const [session, setSession] = useState(null);
 
-  const handleSignIn = () => {
-    // For now, just check against placeholder credentials
-    if (email === 'user@example.com' && password === 'password') {
-      navigation.replace('MainTabs');
-    } else {
-      // In a real app, you'd want to show an error message
-      alert('Invalid credentials');
-    }
+  useEffect(() => {
+    // Check for existing session when component mounts
+    checkSession();
+
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  }, []);
+
+  const checkSession = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setSession(session);
+  };
+
+  const handleStart = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs' }],
+    });
   };
 
   return (
@@ -40,34 +55,20 @@ export default function SignInScreen({ navigation }) {
         <Text style={styles.title}>AI Journal</Text>
         <Text style={styles.subtitle}>Little Moments</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-
-        <TouchableOpacity 
-          style={styles.signInButton}
-          onPress={handleSignIn}
-        >
-          <Text style={styles.signInText}>Sign In</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.hint}>
-          Development Mode:{'\n'}
-          Credentials are pre-filled
-        </Text>
+        {session ? (
+          <TouchableOpacity 
+            style={styles.startButton}
+            onPress={handleStart}
+          >
+            <MaterialCommunityIcons 
+              name="arrow-right" 
+              size={28} 
+              color="#fff" 
+            />
+          </TouchableOpacity>
+        ) : (
+          <Auth navigation={navigation} />
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -81,6 +82,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
     gap: 16,
   },
@@ -123,5 +125,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#666',
     fontSize: 14,
+  },
+  startButton: {
+    backgroundColor: '#333',
+    padding: 16,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+    height: 60,
+    marginTop: 16,
   },
 }); 

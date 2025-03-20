@@ -9,6 +9,7 @@ import EditScreen from './screens/EditScreen';
 import HomeScreen from './screens/HomeScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import { JournalProvider } from './context/JournalContext';
+import AccountDetailsScreen from './screens/AccountDetailsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -108,6 +109,11 @@ export default function App() {
               headerTitle: 'View Entry',
               headerBackTitle: 'Back',
             }}
+          />
+          <Stack.Screen 
+            name="AccountDetails" 
+            component={AccountDetailsScreen}
+            options={{ headerShown: false }}
           />
         </Stack.Navigator>
         <StatusBar style="auto" />
