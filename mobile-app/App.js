@@ -108,6 +108,10 @@ export default function App() {
               headerShown: true,
               headerTitle: 'View Entry',
               headerBackTitle: 'Back',
+              headerTintColor: '#333',
+              headerStyle: {
+                backgroundColor: '#fff',
+              },
             }}
           />
           <Stack.Screen 
