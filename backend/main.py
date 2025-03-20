@@ -40,7 +40,7 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY environment variable is not set")
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Data models
 class Snippet(BaseModel):
@@ -130,45 +130,36 @@ async def get_journals(user_id: uuid.UUID):
 @app.post("/snippets/with-summary", response_model=JournalResponse)
 async def create_snippet_with_summary(snippet: Snippet):
     try:
-        print(f"Creating snippet for user {snippet.user_id}")
-        # 1. Create the snippet
+        # Create the snippet
         snippet_data = {
             "user_id": str(snippet.user_id),  # Convert UUID to string
             "entry": snippet.entry,
             "created_at": datetime.utcnow().isoformat()
         }
-        print("Snippet data:", snippet_data)
         snippet_result = supabase.table("snippets").insert(snippet_data).execute()
-        print("Snippet created:", snippet_result.data)
         
-        # 2. Get all snippets for today
+        # Get all snippets for today
         today = datetime.utcnow().date()
-        print(f"Fetching snippets for user {snippet.user_id} on {today}")
         snippets_result = supabase.table("snippets").select("*").eq("user_id", str(snippet.user_id)).gte("created_at", today.isoformat()).order("created_at").execute()
-        print("Fetched snippets:", snippets_result.data)
         
         # Only generate summary and create journal if there are snippets
         if snippets_result.data:
-            # 3. Generate AI summary using Gemini
+            # Generate AI summary using Gemini
             snippets_text = '\n\n'.join([s['entry'] for s in snippets_result.data])
-            prompt = f"Write a personal journal entry that synthesizes these moments from my day. Write in first person and start directly with the content. Do not include any introductory text, meta-commentary, or explanations:\n\n{snippets_text}"
-            print("Generating AI summary with prompt:", prompt)
+            prompt = f"Summarise these daily snippets into a concise and coherent journal entry in a reflective and personal tone. Write in first person and start directly with the content. Do not include any introductory text, meta-commentary, or explanations:\n\n${snippets_text}";
             
             response = model.generate_content(prompt)
             ai_summary = response.text
-            print("Generated AI summary:", ai_summary)
             
-            # 4. Create or update the journal entry
+            # Create or update the journal entry
             journal_data = {
                 "user_id": str(snippet.user_id),  # Convert UUID to string
                 "date": today.isoformat(),
                 "entry": ai_summary
             }
-            print("Journal data:", journal_data)
             
             # Check if journal exists for today
             existing = supabase.table("journals").select("*").eq("user_id", str(snippet.user_id)).eq("date", today.isoformat()).execute()
-            print("Existing journal:", existing.data)
             
             if existing.data:
                 # Update existing journal
@@ -179,7 +170,6 @@ async def create_snippet_with_summary(snippet: Snippet):
                 # Create new journal
                 journal_result = supabase.table("journals").insert(journal_data).execute()
             
-            print("Final journal result:", journal_result.data)
             return journal_result.data[0]
         else:
             # If no snippets, return None or raise an error
@@ -198,4 +188,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8000)
