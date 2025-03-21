@@ -1,5 +1,4 @@
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { IOS_CLIENT_ID } from '@env';
 import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,21 +6,7 @@ import { AuthService } from '../services';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context';
 
-type RootStackParamList = {
-    MainTabs: undefined;
-};
-
-type AuthProps = {
-    navigation: NativeStackNavigationProp<RootStackParamList>;
-};
-
-// Define interfaces for error handling
-interface GoogleSignInError {
-    code: string | number;
-    message: string;
-}
-
-export default function Auth({ navigation }: AuthProps) {
+export default function Auth({ navigation }) {
     const [isSigningIn, setIsSigningIn] = useState(false);
     const { signInWithGoogle, error } = useAuth();
     
@@ -49,14 +34,13 @@ export default function Auth({ navigation }: AuthProps) {
                 // No need to navigate here
             }
         } catch (err) {
-            const googleError = err as GoogleSignInError;
-            if (googleError.code === SIGN_IN_CANCELLED) {
+            if (err.code === SIGN_IN_CANCELLED) {
                 // User cancelled the login flow
                 console.log('Sign in cancelled');
-            } else if (googleError.code === IN_PROGRESS) {
+            } else if (err.code === IN_PROGRESS) {
                 // Operation is already in progress
                 console.log('Sign in in progress');
-            } else if (googleError.code === PLAY_SERVICES_NOT_AVAILABLE) {
+            } else if (err.code === PLAY_SERVICES_NOT_AVAILABLE) {
                 // Play services not available or outdated
                 Alert.alert('Error', 'Google Play Services is not available or needs an update');
             } else {
@@ -108,4 +92,4 @@ const styles = StyleSheet.create({
     icon: {
         marginRight: 12,
     },
-});
+}); 
