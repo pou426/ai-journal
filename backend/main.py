@@ -1,27 +1,17 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from datetime import datetime, timedelta, date
+from datetime import date
 from typing import List, Optional
-import json
-import random
-import google.generativeai as genai
-import os
-from dotenv import load_dotenv
-from pathlib import Path
-from supabase import create_client, Client
 import uuid
+import traceback
+from dotenv import load_dotenv
+
+# Import models and services
+from models import Snippet, Journal, SnippetResponse, JournalResponse
+from services import snippets_service, journals_service
 
 # Load environment variables
 load_dotenv()
-
-# Supabase configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
-if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are not set")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 app = FastAPI()
 
@@ -34,151 +24,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure Gemini API
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable is not set")
-
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.0-flash')
-
-# Data models
-class Snippet(BaseModel):
-    entry: str
-    user_id: uuid.UUID
-
-class Journal(BaseModel):
-    entry: str
-    date: date
-    user_id: uuid.UUID
-
-class SnippetResponse(BaseModel):
-    id: uuid.UUID
-    user_id: uuid.UUID
-    created_at: datetime
-    entry: str
-
-class JournalResponse(BaseModel):
-    id: uuid.UUID
-    user_id: uuid.UUID
-    date: date
-    entry: str
-
 # Snippets endpoints
 @app.post("/snippets", response_model=SnippetResponse)
 async def create_snippet(snippet: Snippet):
-    try:
-        data = {
-            "user_id": str(snippet.user_id),  # Convert UUID to string
-            "entry": snippet.entry,
-            "created_at": datetime.utcnow().isoformat()
-        }
-        result = supabase.table("snippets").insert(data).execute()
-        return result.data[0]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await snippets_service.create_snippet(snippet.user_id, snippet.entry)
 
 @app.get("/snippets/{user_id}", response_model=List[SnippetResponse])
 async def get_snippets(user_id: uuid.UUID):
-    try:
-        result = supabase.table("snippets").select("*").eq("user_id", str(user_id)).order("created_at", desc=True).execute()
-        return result.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await snippets_service.get_snippets(user_id)
 
 # Journals endpoints
 @app.post("/journals", response_model=JournalResponse)
 async def create_or_update_journal(journal: Journal):
-    try:
-        # Check if a journal entry exists for this date
-        existing = supabase.table("journals").select("*").eq("user_id", str(journal.user_id)).eq("date", journal.date.isoformat()).execute()
-        
-        if existing.data:
-            # Update existing journal
-            result = supabase.table("journals").update({
-                "entry": journal.entry
-            }).eq("id", existing.data[0]["id"]).execute()
-        else:
-            # Create new journal
-            data = {
-                "user_id": str(journal.user_id),  # Convert UUID to string
-                "date": journal.date.isoformat(),
-                "entry": journal.entry
-            }
-            result = supabase.table("journals").insert(data).execute()
-        
-        return result.data[0]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await journals_service.create_or_update_journal(journal.user_id, journal.date, journal.entry)
 
 @app.get("/journals/{user_id}/{date}", response_model=Optional[JournalResponse])
 async def get_journal(user_id: uuid.UUID, date: date):
-    try:
-        result = supabase.table("journals").select("*").eq("user_id", str(user_id)).eq("date", date.isoformat()).execute()
-        return result.data[0] if result.data else None
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await journals_service.get_journal(user_id, date)
 
 @app.get("/journals/{user_id}", response_model=List[JournalResponse])
 async def get_journals(user_id: uuid.UUID):
-    try:
-        result = supabase.table("journals").select("*").eq("user_id", str(user_id)).order("date", desc=True).execute()
-        return result.data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await journals_service.get_journals(user_id)
 
 @app.post("/snippets/with-summary", response_model=JournalResponse)
 async def create_snippet_with_summary(snippet: Snippet):
     try:
         # Create the snippet
-        snippet_data = {
-            "user_id": str(snippet.user_id),  # Convert UUID to string
-            "entry": snippet.entry,
-            "created_at": datetime.utcnow().isoformat()
-        }
-        snippet_result = supabase.table("snippets").insert(snippet_data).execute()
+        await snippets_service.create_snippet(snippet.user_id, snippet.entry)
         
-        # Get all snippets for today
-        today = datetime.utcnow().date()
-        snippets_result = supabase.table("snippets").select("*").eq("user_id", str(snippet.user_id)).gte("created_at", today.isoformat()).order("created_at").execute()
-        
-        # Only generate summary and create journal if there are snippets
-        if snippets_result.data:
-            # Generate AI summary using Gemini
-            snippets_text = '\n\n'.join([s['entry'] for s in snippets_result.data])
-            prompt = f"Summarise these daily snippets into a concise and coherent journal entry in a reflective and personal tone. Write in first person and start directly with the content. Do not include any introductory text, meta-commentary, or explanations:\n\n${snippets_text}";
-            
-            response = model.generate_content(prompt)
-            ai_summary = response.text
-            
-            # Create or update the journal entry
-            journal_data = {
-                "user_id": str(snippet.user_id),  # Convert UUID to string
-                "date": today.isoformat(),
-                "entry": ai_summary
-            }
-            
-            # Check if journal exists for today
-            existing = supabase.table("journals").select("*").eq("user_id", str(snippet.user_id)).eq("date", today.isoformat()).execute()
-            
-            if existing.data:
-                # Update existing journal
-                journal_result = supabase.table("journals").update({
-                    "entry": ai_summary
-                }).eq("id", existing.data[0]["id"]).execute()
-            else:
-                # Create new journal
-                journal_result = supabase.table("journals").insert(journal_data).execute()
-            
-            return journal_result.data[0]
-        else:
-            # If no snippets, return None or raise an error
-            raise HTTPException(status_code=400, detail="No snippets found for today")
-            
+        # Generate journal from snippets
+        return await journals_service.create_journal_from_snippets(snippet.user_id)
     except Exception as e:
         print(f"Error in create_snippet_with_summary: {str(e)}")
         print(f"Error type: {type(e)}")
-        import traceback
         print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 

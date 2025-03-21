@@ -7,9 +7,10 @@ import {
   SafeAreaView 
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '../context';
 
-export default function AccountDetailsScreen({ navigation, route }) {
-  const { email } = route.params;
+export default function AccountDetailsScreen({ navigation }) {
+  const { user } = useAuth();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -27,7 +28,7 @@ export default function AccountDetailsScreen({ navigation, route }) {
 
       <View style={styles.content}>
         <Text style={styles.label}>Email</Text>
-        <Text style={styles.email}>{email}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
       </View>
     </SafeAreaView>
   );

@@ -3,12 +3,12 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View, Text } from 'react-native';
+import { View, Text, ActivityIndicator } from 'react-native';
 import SignInScreen from './screens/SignInScreen';
 import EditScreen from './screens/EditScreen';
 import HomeScreen from './screens/HomeScreen';
 import SettingsScreen from './screens/SettingsScreen';
-import { JournalProvider } from './context/JournalContext';
+import { JournalProvider, AuthProvider, useAuth } from './context';
 import AccountDetailsScreen from './screens/AccountDetailsScreen';
 
 const Tab = createBottomTabNavigator();
@@ -94,34 +94,61 @@ function LogoTitle({ title, showDate = false }) {
   );
 }
 
+// Navigation container with authentication state
+function AppNavigator() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#333" />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!user ? (
+          // User is not authenticated - only show SignIn
+          <Stack.Screen name="SignIn" component={SignInScreen} />
+        ) : (
+          // User is authenticated - show all screens
+          <>
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen 
+              name="ViewEntry" 
+              component={EditScreen}
+              options={{ 
+                headerShown: true,
+                headerTitle: 'View Entry',
+                headerBackTitle: 'Back',
+                headerTintColor: '#333',
+                headerStyle: {
+                  backgroundColor: '#fff',
+                },
+              }}
+            />
+            <Stack.Screen 
+              name="AccountDetails" 
+              component={AccountDetailsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen name="SignIn" component={SignInScreen} />
+          </>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
-    <JournalProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="SignIn" component={SignInScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen 
-            name="ViewEntry" 
-            component={EditScreen}
-            options={{ 
-              headerShown: true,
-              headerTitle: 'View Entry',
-              headerBackTitle: 'Back',
-              headerTintColor: '#333',
-              headerStyle: {
-                backgroundColor: '#fff',
-              },
-            }}
-          />
-          <Stack.Screen 
-            name="AccountDetails" 
-            component={AccountDetailsScreen}
-            options={{ headerShown: false }}
-          />
-        </Stack.Navigator>
+    <AuthProvider>
+      <JournalProvider>
+        <AppNavigator />
         <StatusBar style="auto" />
-      </NavigationContainer>
-    </JournalProvider>
+      </JournalProvider>
+    </AuthProvider>
   );
 } 

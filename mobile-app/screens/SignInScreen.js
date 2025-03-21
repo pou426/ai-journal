@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -9,29 +9,10 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Auth from '../components/Auth';
-import { supabase } from '../utils/supabase';
+import { useAuth } from '../context';
 
 export default function SignInScreen({ navigation }) {
-  const [session, setSession] = useState(null);
-
-  useEffect(() => {
-    // Check for existing session when component mounts
-    checkSession();
-
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => {
-      if (subscription) subscription.unsubscribe();
-    };
-  }, []);
-
-  const checkSession = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setSession(session);
-  };
+  const { user } = useAuth();
 
   const handleStart = () => {
     navigation.reset({
@@ -55,7 +36,7 @@ export default function SignInScreen({ navigation }) {
         <Text style={styles.title}>AI Journal</Text>
         <Text style={styles.subtitle}>Little Moments</Text>
 
-        {session ? (
+        {user ? (
           <TouchableOpacity 
             style={styles.startButton}
             onPress={handleStart}

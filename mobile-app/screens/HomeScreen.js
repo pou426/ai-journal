@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
-import { API_URL } from '../config';
-import axios from 'axios';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { supabase } from '../utils/supabase';
+import { useJournal, useAuth } from '../context';
+import { JournalService } from '../services';
+import { DateUtils } from '../utils';
 
 export default function HomeScreen({ navigation }) {
   const [entries, setEntries] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const { lastUpdate } = useJournal();
+  const { user } = useAuth();
 
   useEffect(() => {
-    getCurrentUser();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
+    if (user) {
       fetchEntries();
       // Add listener for when screen comes into focus
       const unsubscribe = navigation.addListener('focus', () => {
@@ -23,31 +19,20 @@ export default function HomeScreen({ navigation }) {
       });
       return unsubscribe;
     }
-  }, [navigation, userId]);
-
-  const getCurrentUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      }
-    } catch (error) {
-      console.error('Error getting current user:', error);
-    }
-  };
+  }, [navigation, user, lastUpdate]);
 
   const fetchEntries = async () => {
-    if (!userId) return;
+    if (!user) return;
     
     try {
-      const response = await axios.get(`${API_URL}/journals/${userId}`);
-      // Sort entries by date in descending order
-      const sortedEntries = response.data.sort((a, b) => 
-        new Date(b.date) - new Date(a.date)
-      );
-      setEntries(sortedEntries);
+      setRefreshing(true);
+      // Use JournalService to get formatted journals
+      const journals = await JournalService.getAllJournals(user.id);
+      setEntries(journals);
     } catch (error) {
       console.error('Error fetching entries:', error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -58,52 +43,35 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   const renderItem = ({ item }) => {
-    const formatDate = (dateString) => {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    };
-
-    const truncateContent = (text) => {
-      const lines = text.split('\n').slice(0, 3);
-      let truncated = lines.join('\n');
-      
-      if (truncated.length > 120) {
-        truncated = truncated.substring(0, 120).trim() + '...';
-      } else if (lines.length === 3) {
-        truncated = truncated + '...';
-      }
-      
-      return truncated;
-    };
-
     return (
       <TouchableOpacity 
         style={styles.entryItem}
         onPress={() => {
-          const today = new Date().toISOString().split('T')[0];
-          
-          if (item.date === today) {
-            // If it's today's entry, navigate to Today tab
-            navigation.navigate('Today');
-          } else {
-            // If it's a past entry, navigate to Edit screen with date param
+          try {
+            // Check if the date is today using DateUtils or fallback
+            const isToday = item.date ? DateUtils.isToday(item.date) : false;
+            if (isToday) {
+              // If it's today's entry, navigate to Today tab
+              navigation.navigate('Today');
+            } else {
+              // If it's a past entry, navigate to Edit screen with date param
+              navigation.navigate('ViewEntry', { date: item.date });
+            }
+          } catch (error) {
+            console.error('Error in navigation:', error);
+            // Fallback to view entry
             navigation.navigate('ViewEntry', { date: item.date });
           }
         }}
       >
         <Text style={styles.date}>
-          {formatDate(item.date)}
+          {item.formattedDate}
         </Text>
         <Text 
           style={styles.content}
           numberOfLines={3}
         >
-          {truncateContent(item.entry)}
+          {item.preview}
         </Text>
       </TouchableOpacity>
     );

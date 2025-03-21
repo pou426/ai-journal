@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -7,40 +7,27 @@ import {
   SafeAreaView 
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { supabase } from '../utils/supabase';
+import { useAuth } from '../context';
 
 export default function SettingsScreen({ navigation }) {
-  const [userEmail, setUserEmail] = useState(null);
-
-  useEffect(() => {
-    getUserEmail();
-  }, []);
-
-  const getUserEmail = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.email) {
-      setUserEmail(session.user.email);
-    }
-  };
+  const { user, signOut } = useAuth();
 
   const handleLogout = async () => {
     try {
-      // Sign out from Supabase
-      await supabase.auth.signOut();
+      // Sign out using the AuthContext
+      await signOut();
       
-      // Sign out from Google
-      await GoogleSignin.signOut();
-      
-      // Reset navigation to SignIn screen
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'SignIn' }],
-      });
+      // Navigation is automatically handled in App.js by AuthContext
+      // No need to reset navigation here
     } catch (error) {
       console.error('Error during logout:', error);
       alert('Failed to log out. Please try again.');
     }
+  };
+  
+  const goBackToHome = () => {
+    // Navigate to SignIn screen without logging out
+    navigation.navigate('SignIn');
   };
 
   return (
@@ -49,7 +36,7 @@ export default function SettingsScreen({ navigation }) {
         <View style={styles.menuSection}>
           <TouchableOpacity 
             style={styles.menuItem}
-            onPress={() => navigation.navigate('AccountDetails', { email: userEmail })}
+            onPress={() => navigation.navigate('AccountDetails', { email: user?.email })}
           >
             <View style={styles.menuRow}>
               <MaterialCommunityIcons 
@@ -63,7 +50,7 @@ export default function SettingsScreen({ navigation }) {
 
           <TouchableOpacity 
             style={[styles.menuItem, styles.borderTop]}
-            onPress={() => navigation.navigate('SignIn')}
+            onPress={goBackToHome}
           >
             <View style={styles.menuRow}>
               <MaterialCommunityIcons 

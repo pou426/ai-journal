@@ -10,9 +10,9 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { API_URL } from '../config';
-import axios from 'axios';
-import { supabase } from '../utils/supabase';
+import { useAuth } from '../context';
+import { SnippetService, JournalService } from '../services';
+import { DateUtils } from '../utils';
 
 export default function EditScreen({ route, navigation }) {
   const [snippetInput, setSnippetInput] = useState('');
@@ -20,18 +20,14 @@ export default function EditScreen({ route, navigation }) {
   const [aiSummary, setAiSummary] = useState('');
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'snippets'
   const [isGenerating, setIsGenerating] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const { user } = useAuth();
   
   // Check if we're viewing a past entry
   const isPastEntry = route?.params?.date !== undefined;
-  const date = isPastEntry ? route.params.date : new Date().toISOString().split('T')[0];
+  const date = isPastEntry ? route.params.date : DateUtils.getTodayISODate();
 
   useEffect(() => {
-    getCurrentUser();
-  }, []);
-
-  useEffect(() => {
-    if (userId) {
+    if (user) {
       fetchEntry();
       // Add listener for when screen comes into focus
       const unsubscribe = navigation.addListener('focus', () => {
@@ -39,34 +35,20 @@ export default function EditScreen({ route, navigation }) {
       });
       return unsubscribe;
     }
-  }, [navigation, date, userId]);
-
-  const getCurrentUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      }
-    } catch (error) {
-      console.error('Error getting current user:', error);
-    }
-  };
+  }, [navigation, date, user]);
 
   const fetchEntry = async () => {
-    if (!userId) return;
+    if (!user) return;
     
     try {
       // Fetch snippets for the day
-      const snippetsResponse = await axios.get(`${API_URL}/snippets/${userId}`);
-      const daySnippets = snippetsResponse.data
-        .filter(s => new Date(s.created_at).toISOString().split('T')[0] === date)
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Sort by timestamp ascending
-      setSnippets(daySnippets);
+      const daySnippets = await SnippetService.getSnippetsByDate(user.id, date);
+      setSnippets(daySnippets || []); // Ensure we're setting an array
 
       // Fetch journal entry for the day
-      const journalResponse = await axios.get(`${API_URL}/journals/${userId}/${date}`);
-      if (journalResponse.data) {
-        setAiSummary(journalResponse.data.entry);
+      const journalEntry = await JournalService.getJournalByDate(user.id, date);
+      if (journalEntry) {
+        setAiSummary(journalEntry.entry);
       } else {
         // Clear the AI summary if there's no journal entry for today
         setAiSummary('');
@@ -75,29 +57,24 @@ export default function EditScreen({ route, navigation }) {
       console.error('Error fetching entry:', error);
       // Clear the AI summary on error
       setAiSummary('');
+      setSnippets([]); // Reset snippets on error
     }
   };
 
   const addSnippet = async () => {
-    if (!snippetInput.trim() || !userId) return;
+    if (!snippetInput.trim() || !user) return;
 
     setIsGenerating(true);
     try {
-      // Use the new endpoint that handles both snippet creation and AI summary
-      const response = await axios.post(`${API_URL}/snippets/with-summary`, {
-        entry: snippetInput.trim(),
-        user_id: userId
-      });
+      // Use the service to create snippet and generate journal
+      const journalEntry = await SnippetService.createSnippetWithSummary(user.id, snippetInput.trim());
       
       // Update UI with the new journal entry
-      setAiSummary(response.data.entry);
+      setAiSummary(journalEntry.entry);
       setSnippetInput('');
       
       // Refresh snippets
-      const snippetsResponse = await axios.get(`${API_URL}/snippets/${userId}`);
-      const daySnippets = snippetsResponse.data.filter(s => 
-        new Date(s.created_at).toISOString().split('T')[0] === date
-      );
+      const daySnippets = await SnippetService.getSnippetsByDate(user.id, date);
       setSnippets(daySnippets);
     } catch (error) {
       console.error('Error saving snippet:', error);
@@ -106,14 +83,34 @@ export default function EditScreen({ route, navigation }) {
     }
   };
 
-  const renderSnippet = ({ item }) => (
-    <View style={styles.snippetItem}>
-      <Text style={styles.snippetTime}>
-        {new Date(item.created_at).toLocaleTimeString()}
-      </Text>
-      <Text style={styles.snippetText}>{item.entry}</Text>
-    </View>
-  );
+  const renderSnippet = ({ item }) => {
+    // Add defensive code to handle potential issues
+    let formattedTime = '';
+    try {
+      if (item && item.created_at) {
+        formattedTime = DateUtils.formatTime(item.created_at);
+      }
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      // Fallback to a basic timestamp if DateUtils fails
+      if (item && item.created_at) {
+        const date = new Date(item.created_at);
+        formattedTime = date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    }
+
+    return (
+      <View style={styles.snippetItem}>
+        <Text style={styles.snippetTime}>
+          {formattedTime}
+        </Text>
+        <Text style={styles.snippetText}>{item?.text || item?.entry || ''}</Text>
+      </View>
+    );
+  };
 
   const TabButton = ({ title, isActive, onPress }) => (
     <Pressable 
@@ -153,12 +150,20 @@ export default function EditScreen({ route, navigation }) {
             </ScrollView>
           </View>
         ) : (
-          <FlatList
-            data={snippets}
-            renderItem={renderSnippet}
-            keyExtractor={item => item.id}
-            style={styles.snippetsList}
-          />
+          <View style={styles.snippetsContainer}>
+            {snippets && snippets.length > 0 ? (
+              <FlatList
+                data={snippets}
+                renderItem={renderSnippet}
+                keyExtractor={item => item.id ? item.id.toString() : Math.random().toString()}
+                style={styles.snippetsList}
+              />
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No snippets found for this day</Text>
+              </View>
+            )}
+          </View>
         )}
       </View>
     );
@@ -215,12 +220,20 @@ export default function EditScreen({ route, navigation }) {
           </ScrollView>
         </View>
       ) : (
-        <FlatList
-          data={snippets}
-          renderItem={renderSnippet}
-          keyExtractor={item => item.id}
-          style={styles.snippetsList}
-        />
+        <View style={styles.snippetsContainer}>
+          {snippets && snippets.length > 0 ? (
+            <FlatList
+              data={snippets}
+              renderItem={renderSnippet}
+              keyExtractor={item => item.id ? item.id.toString() : Math.random().toString()}
+              style={styles.snippetsList}
+            />
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No snippets yet. Add your first snippet above!</Text>
+            </View>
+          )}
+        </View>
       )}
     </View>
   );
@@ -335,5 +348,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#666',
     fontSize: 14,
+  },
+  snippetsContainer: {
+    flex: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'center',
   },
 }); 
