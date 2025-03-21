@@ -1,20 +1,17 @@
 import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from supabase import create_client, Client
 import uuid
 import argparse
 import random
 
-# Load environment variables
-load_dotenv()
+# Import models and services
+from services import snippets_service, journals_service  
 
-# Supabase configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
-if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are not set")
+# Import configuration
+from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 
+# Create Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # Sample activities for different times of day

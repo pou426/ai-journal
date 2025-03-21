@@ -1,15 +1,10 @@
-import os
 from supabase import create_client, Client
-from dotenv import load_dotenv
+import sys
+import os
 
-# Load environment variables
-load_dotenv()
-
-# Supabase configuration
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY')
-if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are not set")
+# Add the parent directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 

@@ -1,15 +1,12 @@
-import os
 import google.generativeai as genai
-from dotenv import load_dotenv
+import sys
+import os
 
-# Load environment variables
-load_dotenv()
+# Add the parent directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import GEMINI_API_KEY
 
 # Configure Gemini API
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable is not set")
-
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.0-flash')
 
