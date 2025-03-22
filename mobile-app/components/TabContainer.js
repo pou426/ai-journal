@@ -6,7 +6,7 @@ const TabContainer = ({
   activeTab, 
   setActiveTab, 
   tabs = [
-    { id: 'summary', title: 'AI Summary' },
+    { id: 'summary', title: 'AI Journal ✨' },
     { id: 'snippets', title: 'Snippets' }
   ] 
 }) => {

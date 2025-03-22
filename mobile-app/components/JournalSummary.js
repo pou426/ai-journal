@@ -30,7 +30,6 @@ const JournalSummary = ({ summary, isGenerating = false }) => {
 const styles = StyleSheet.create({
   summaryContainer: {
     flex: 1,
-    backgroundColor: '#f9f9f9',
     borderRadius: 8,
   },
   summaryScroll: {

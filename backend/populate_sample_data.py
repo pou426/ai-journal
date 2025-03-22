@@ -107,14 +107,46 @@ def create_journal_entry(date, snippets, user_id):
         "entry": " ".join(entries)
     }
 
-def populate_sample_data(user_id, days=7):
+def populate_sample_data(user_id, days=7, specific_date=None):
     """
     Populate the database with sample data for the past N days, starting from yesterday.
+    Alternatively, can generate data for a specific date.
     
     Args:
         user_id (str): The user ID to create data for
         days (int): Number of days of data to generate
+        specific_date (str): Optional specific date in YYYY-MM-DD format
     """
+    if specific_date:
+        try:
+            # Parse the provided date string into a datetime object
+            specific_datetime = datetime.strptime(specific_date, "%Y-%m-%d")
+            
+            # Generate snippets for the specific date
+            snippets = generate_day_snippets(specific_datetime, user_id)
+            
+            # Create journal entry
+            journal_entry = create_journal_entry(specific_datetime, snippets, user_id)
+            
+            try:
+                # Insert snippets
+                for snippet in snippets:
+                    supabase.table("snippets").insert(snippet).execute()
+                
+                # Insert journal entry
+                supabase.table("journals").insert(journal_entry).execute()
+                
+                print(f"Successfully populated data for specific date: {specific_date}")
+                return
+            except Exception as e:
+                print(f"Error populating data for specific date {specific_date}: {str(e)}")
+                return
+                
+        except ValueError:
+            print(f"Invalid date format: {specific_date}. Please use YYYY-MM-DD format.")
+            return
+    
+    # If no specific date provided, generate for past days
     yesterday = datetime.now() - timedelta(days=1)  # Start from yesterday
     
     for i in range(days):
@@ -145,15 +177,22 @@ def main():
                       help='User ID to create sample data for')
     parser.add_argument('--days', type=int, default=7,
                       help='Number of days of data to generate (default: 7)')
+    parser.add_argument('--date', type=str,
+                      help='Specific date to generate data for in YYYY-MM-DD format')
     
     args = parser.parse_args()
     
-    print(f"\nThis will generate {args.days} days of sample data")
-    print(f"For user ID: {args.user_id}")
+    if args.date:
+        print(f"\nThis will generate sample data for specific date: {args.date}")
+        print(f"For user ID: {args.user_id}")
+    else:
+        print(f"\nThis will generate {args.days} days of sample data")
+        print(f"For user ID: {args.user_id}")
+    
     confirmation = input("Are you sure you want to proceed? (y/N): ")
     
     if confirmation.lower() == 'y':
-        populate_sample_data(args.user_id, args.days)
+        populate_sample_data(args.user_id, args.days, args.date)
         print("\nFinished populating sample data!")
     else:
         print("Operation cancelled")
