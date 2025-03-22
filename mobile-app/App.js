@@ -1,18 +1,30 @@
-import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { View, Text, ActivityIndicator } from 'react-native';
-import SignInScreen from './screens/SignInScreen';
-import EditScreen from './screens/EditScreen';
-import HomeScreen from './screens/HomeScreen';
-import SettingsScreen from './screens/SettingsScreen';
 import { JournalProvider, AuthProvider, useAuth } from './context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { NavigationContainer } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
+import { View, Text, ActivityIndicator } from 'react-native';
 import AccountDetailsScreen from './screens/AccountDetailsScreen';
+import AllJournalsScreen from './screens/AllJournalsScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import SignInScreen from './screens/SignInScreen';
+import TodayScreen from './screens/TodayScreen';
+import ViewEntryScreen from './screens/ViewEntryScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+// Custom logo title component
+const LogoTitle = ({ title, showDate = false }) => {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Text style={{ fontSize: 17, fontWeight: '600', color: '#333' }}>
+        {title}
+      </Text>
+    </View>
+  );
+};
 
 function MainTabs() {
   return (
@@ -29,7 +41,7 @@ function MainTabs() {
     >
       <Tab.Screen 
         name="Today" 
-        component={EditScreen}
+        component={TodayScreen}
         options={{
           headerTitle: () => <LogoTitle title="Today" showDate={true} />,
           headerShown: true,
@@ -41,14 +53,16 @@ function MainTabs() {
       />
       <Tab.Screen 
         name="All Journals" 
-        component={HomeScreen}
-        options={{
+        component={AllJournalsScreen}
+        options={({ navigation, route }) => ({
           headerShown: true,
           headerTitle: () => <LogoTitle title="All Journals" />,
+          // Use the headerRight option to allow the screen to pass a custom component
+          headerRight: () => route.params?.headerRight ? route.params.headerRight() : null,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="notebook-multiple" size={size} color={color} />
           ),
-        }}
+        })}
       />
       <Tab.Screen 
         name="Settings" 
@@ -62,35 +76,6 @@ function MainTabs() {
         }}
       />
     </Tab.Navigator>
-  );
-}
-
-// Update the LogoTitle component to handle date display
-function LogoTitle({ title, showDate = false }) {
-  const today = new Date();
-  const formattedDate = today.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <MaterialCommunityIcons 
-        name={title === "Today" ? "pen-plus" : "notebook-multiple"} 
-        size={24} 
-        color="#333" 
-      />
-      <Text style={{ 
-        marginLeft: 8,
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#333'
-      }}>
-        {showDate ? formattedDate : title}
-      </Text>
-    </View>
   );
 }
 
@@ -118,7 +103,7 @@ function AppNavigator() {
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen 
               name="ViewEntry" 
-              component={EditScreen}
+              component={ViewEntryScreen}
               options={{ 
                 headerShown: true,
                 headerTitle: 'View Entry',

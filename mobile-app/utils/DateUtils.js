@@ -7,7 +7,10 @@ class DateUtils {
    * @returns {string} - Today's date in ISO format
    */
   getTodayISODate() {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    // Create UTC date to avoid timezone issues
+    const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    return todayUTC.toISOString().split('T')[0];
   }
 
   /**
@@ -54,8 +57,29 @@ class DateUtils {
    * @returns {boolean} - Whether the date is today
    */
   isToday(date) {
-    const today = this.getTodayISODate();
-    const dateString = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    // Get today's date in ISO format using UTC
+    const now = new Date();
+    const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const today = todayUTC.toISOString().split('T')[0];
+    
+    // Convert the input date to ISO format
+    let dateString;
+    if (typeof date === 'string') {
+      // If already in YYYY-MM-DD format, use as is
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        dateString = date;
+      } else {
+        // Parse the date string to UTC 
+        const dateObj = new Date(date);
+        const dateUTC = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+        dateString = dateUTC.toISOString().split('T')[0];
+      }
+    } else {
+      // Convert Date object to UTC date
+      const dateUTC = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      dateString = dateUTC.toISOString().split('T')[0];
+    }
+    
     return dateString === today;
   }
 
