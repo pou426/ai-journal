@@ -421,7 +421,7 @@ export default function AllJournalsScreen({ navigation }) {
       <View style={styles.selectedEntryContainer}>
         <View style={styles.selectedEntryHeader}>
           <View style={styles.dateRow}>
-            <View style={styles.dateContainer}>
+            <View style={styles.calendarDateContainer}>
               <Text style={styles.weekdayText}>{dateParts.weekday}</Text>
               <Text style={styles.dateText}>{dateParts.month} {dateParts.day}, {dateParts.year}</Text>
             </View>
@@ -506,10 +506,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#888',
   },
-  // Date container styles
+  // Date container styles for list view
   dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    width: 65,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+    position: 'relative',
   },
   dateDay: {
     fontSize: 24,
@@ -572,6 +575,10 @@ const styles = StyleSheet.create({
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  calendarDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
   weekdayText: {
     fontSize: 14,
