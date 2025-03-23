@@ -13,12 +13,12 @@ import {
 import { useJournal, useAuth } from '../context';
 import { JournalService, SnippetService } from '../services';
 import { DateUtils } from '../utils';
-import { TabContainer, JournalSummary, SnippetsList, Calendar } from '../components';
+import { JournalSummary, SnippetsList, Calendar, ViewContainer } from '../components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
-export default function AllJournalsScreen({ navigation }) {
+export default function AllJournalsScreen({ navigation, route }) {
   const [entries, setEntries] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
@@ -37,6 +37,9 @@ export default function AllJournalsScreen({ navigation }) {
   
   const { lastUpdate } = useJournal();
   const { user } = useAuth();
+
+  // Access refreshTrigger from route params
+  const refreshTrigger = route.params?.refreshTrigger || 0;
 
   // Set up the header right component
   useEffect(() => {
@@ -68,6 +71,17 @@ export default function AllJournalsScreen({ navigation }) {
       return unsubscribe;
     }
   }, [navigation, user, lastUpdate]);
+
+  // Add refresh effect when refreshTrigger changes
+  useEffect(() => {
+    if (user && refreshTrigger > 0) {
+      fetchEntries();
+      // If in calendar view and a date is selected, also refresh that date's content
+      if (viewMode === 'calendar' && selectedDate) {
+        fetchSelectedDateContent();
+      }
+    }
+  }, [refreshTrigger, user]);
 
   useEffect(() => {
     // Set today as selected date if it has an entry, otherwise set the most recent entry
@@ -307,10 +321,12 @@ export default function AllJournalsScreen({ navigation }) {
         {/* Content section */}
         <View style={styles.contentContainer}>
           {isToday && (
-            <Text style={styles.todayLabel}>Today</Text>
+            <View style={styles.todayBadge}>
+              <Text style={styles.todayText}>TODAY</Text>
+            </View>
           )}
           <Text 
-            style={styles.contentText}
+            style={[styles.contentText, isToday && styles.contentTextWithBadge]}
             numberOfLines={3}
           >
             {item.preview}
@@ -425,31 +441,30 @@ export default function AllJournalsScreen({ navigation }) {
               <Text style={styles.weekdayText}>{dateParts.weekday}</Text>
               <Text style={styles.dateText}>{dateParts.month} {dateParts.day}, {dateParts.year}</Text>
             </View>
-            {isToday && <View style={styles.todayBadge}><Text style={styles.todayText}>TODAY</Text></View>}
+            {isToday && <View style={[styles.todayBadge, styles.todayBadgeInCalendar]}><Text style={styles.todayText}>TODAY</Text></View>}
           </View>
         </View>
         
         <View style={styles.selectedEntryContent}>
-          <TabContainer activeTab={activeTab} setActiveTab={setActiveTab} />
-          
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#555" />
               <Text style={styles.loadingText}>Loading entry...</Text>
             </View>
           ) : (
-            <>
-              {activeTab === 'summary' ? (
-                <JournalSummary summary={selectedJournal} />
-              ) : (
+            <ViewContainer
+              journalView={<JournalSummary summary={selectedJournal} />}
+              snippetsView={
                 <View style={styles.snippetsContainer}>
                   <SnippetsList 
                     snippets={selectedSnippets} 
                     emptyMessage="No snippets found for this day" 
                   />
                 </View>
-              )}
-            </>
+              }
+              defaultToJournal={activeTab === 'summary'}
+              onToggleView={(isJournal) => setActiveTab(isJournal ? 'summary' : 'snippets')}
+            />
           )}
         </View>
       </View>
@@ -537,20 +552,33 @@ const styles = StyleSheet.create({
   // Content container styles
   contentContainer: {
     flex: 1,
-    justifyContent: 'center',
-  },
-  todayLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#444',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    justifyContent: 'flex-start',
   },
   contentText: {
     fontSize: 15,
     color: '#444',
     lineHeight: 22,
+  },
+  contentTextWithBadge: {
+    marginTop: 8,
+  },
+  // Common TODAY badge styles used in both list and calendar views
+  todayBadge: {
+    backgroundColor: '#444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  todayBadgeInCalendar: {
+    marginLeft: 8,
+    marginBottom: 0,
+  },
+  todayText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   // Calendar view styles
   calendarView: {
@@ -589,18 +617,6 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 13,
     color: '#666',
-  },
-  todayBadge: {
-    backgroundColor: '#444',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
-  },
-  todayText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
   },
   selectedEntryContent: {
     flex: 1,
@@ -642,5 +658,32 @@ const styles = StyleSheet.create({
   },
   entryScrollContent: {
     paddingBottom: 20,
+  },
+  viewSelectorContainer: {
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    marginBottom: 16,
+  },
+  viewSelector: {
+    flexDirection: 'row',
+  },
+  viewOption: {
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    marginRight: 16,
+  },
+  activeViewOption: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#333',
+  },
+  viewOptionText: {
+    fontSize: 15,
+    color: '#999',
+    fontWeight: '500',
+  },
+  activeViewOptionText: {
+    color: '#333',
+    fontWeight: '600',
   },
 }); 

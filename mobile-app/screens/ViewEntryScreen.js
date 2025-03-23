@@ -5,12 +5,11 @@ import {
 } from 'react-native';
 import { useAuth } from '../context';
 import { SnippetService, JournalService } from '../services';
-import { SnippetsList, TabContainer, JournalSummary } from '../components';
+import { SnippetsList, JournalSummary, ViewContainer } from '../components';
 
 export default function ViewEntryScreen({ route, navigation }) {
   const [snippets, setSnippets] = useState([]);
   const [journal, setJournal] = useState('');
-  const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'snippets'
   const { user } = useAuth();
   
   // Get the date from the route params
@@ -21,6 +20,17 @@ export default function ViewEntryScreen({ route, navigation }) {
       fetchEntry();
     }
   }, [user, date]);
+
+  // Format date for display and set navigation header
+  useEffect(() => {
+    if (date) {
+      const formattedDate = formatDate(date);
+      navigation.setOptions({
+        title: formattedDate,
+        headerTitle: formattedDate,
+      });
+    }
+  }, [date, navigation]);
 
   const fetchEntry = async () => {
     if (!user || !date) return;
@@ -45,20 +55,34 @@ export default function ViewEntryScreen({ route, navigation }) {
     }
   };
 
+  // Format date for display
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+      const formattedDate = date.toLocaleDateString('en-US', { 
+        month: 'long', 
+        day: 'numeric',
+        year: 'numeric'
+      });
+      return `${dayOfWeek}   ${formattedDate}`;
+    } catch (error) {
+      return dateString;
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <TabContainer activeTab={activeTab} setActiveTab={setActiveTab} />
-
-      {activeTab === 'summary' ? (
-        <JournalSummary summary={journal} />
-      ) : (
-        <View style={styles.contentContainer}>
+      <ViewContainer
+        journalView={<JournalSummary summary={journal} />}
+        snippetsView={
           <SnippetsList 
             snippets={snippets} 
             emptyMessage="No snippets found for this day" 
           />
-        </View>
-      )}
+        }
+        defaultToJournal={true}
+      />
     </View>
   );
 }
@@ -69,7 +93,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 16,
   },
-  contentContainer: {
-    flex: 1,
-  }
 }); 

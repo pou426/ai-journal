@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   StyleSheet, 
-  View, 
-  TextInput, 
-  Text,
-  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAuth } from '../context';
 import { SnippetService, JournalService } from '../services';
 import { DateUtils } from '../utils';
-import { SnippetsList, TabContainer, JournalSummary } from '../components';
+import { SnippetsList, JournalSummary, ViewContainer } from '../components';
 
-export default function TodayScreen({ navigation }) {
-  const [snippetInput, setSnippetInput] = useState('');
+export default function TodayScreen({ navigation, route }) {
   const [snippets, setSnippets] = useState([]);
   const [aiSummary, setAiSummary] = useState('');
-  const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'snippets'
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentView, setCurrentView] = useState('snippets'); // Track the active view
   const { user } = useAuth();
+  const prevRefreshTrigger = useRef(0);
+  
+  // Access refreshTrigger from route params
+  const refreshTrigger = route.params?.refreshTrigger || 0;
   
   // Always use today's date
   const date = DateUtils.getTodayISODate();
@@ -33,6 +33,58 @@ export default function TodayScreen({ navigation }) {
     }
   }, [navigation, user]);
 
+  // Respond to param changes immediately, even when already on screen
+  useEffect(() => {
+    if (!user) return;
+    
+    // Only process this if refreshTrigger changed or if there's a new snippet
+    if (refreshTrigger > prevRefreshTrigger.current || route.params?.newSnippet) {
+      prevRefreshTrigger.current = refreshTrigger;
+      
+      // Check if there's a new snippet to add immediately 
+      const newSnippet = route.params?.newSnippet;
+      const isGeneratingJournal = route.params?.isGeneratingJournal;
+      
+      if (newSnippet) {
+        // Add the new snippet optimistically to the UI
+        addSnippetToUI(newSnippet);
+        // Clear the newSnippet param to prevent duplicate additions
+        navigation.setParams({ 
+          newSnippet: undefined,
+          isGeneratingJournal: undefined 
+        });
+        
+        // If we're in journal view or if explicitly told the journal is generating, show spinner
+        if (currentView === 'journal' || isGeneratingJournal) {
+          setIsGenerating(true);
+        }
+      }
+      
+      // Always fetch from server to get the latest data
+      fetchEntry();
+    }
+  }, [refreshTrigger, route.params?.newSnippet, route.params?.isGeneratingJournal, user, currentView]);
+
+  // Function to add a snippet to the UI immediately
+  const addSnippetToUI = useCallback((newSnippet) => {
+    if (!newSnippet) return;
+    
+    setSnippets(currentSnippets => {
+      // Check if we already have this snippet in the array (by temporary ID)
+      const snippetExists = currentSnippets.some(s => 
+        s.id === newSnippet.id || 
+        (s.text === newSnippet.text && s.created_at === newSnippet.created_at)
+      );
+      
+      if (snippetExists) {
+        return currentSnippets;
+      }
+      
+      // Add the new snippet at the beginning of the array
+      return [newSnippet, ...currentSnippets];
+    });
+  }, []);
+
   const fetchEntry = async () => {
     if (!user) return;
     
@@ -41,76 +93,54 @@ export default function TodayScreen({ navigation }) {
       const daySnippets = await SnippetService.getSnippetsByDate(user.id, date);
       setSnippets(daySnippets || []); // Ensure we're setting an array
 
+      // If we're fetching after adding a snippet, show the loading state
+      const isRefreshingJournal = isGenerating;
+      
       // Fetch journal entry for the day
       const journalEntry = await JournalService.getJournalByDate(user.id, date);
       if (journalEntry) {
         setAiSummary(journalEntry.entry);
+        setIsGenerating(false); // Turn off loading state when journal is loaded
       } else {
         // Clear the AI summary if there's no journal entry for today
         setAiSummary('');
+        
+        // Check if we're in the process of generating a new journal
+        if (isRefreshingJournal) {
+          // If we're expecting a journal but don't have one yet,
+          // keep the loading state on - the generation may still be in progress
+        } else {
+          // If we're not expecting a new journal, turn off loading state
+          setIsGenerating(false);
+        }
       }
     } catch (error) {
       console.error('Error fetching entry:', error);
       // Clear the AI summary on error
       setAiSummary('');
       setSnippets([]); // Reset snippets on error
+      setIsGenerating(false); // Turn off loading state on error
     }
   };
 
-  const addSnippet = async () => {
-    if (!snippetInput.trim() || !user) return;
-
-    setIsGenerating(true);
-    try {
-      // Use the service to create snippet and generate journal
-      const journalEntry = await SnippetService.createSnippetWithSummary(user.id, snippetInput.trim());
-      
-      // Update UI with the new journal entry
-      setAiSummary(journalEntry.entry);
-      setSnippetInput('');
-      
-      // Refresh snippets
-      const daySnippets = await SnippetService.getSnippetsByDate(user.id, date);
-      setSnippets(daySnippets);
-    } catch (error) {
-      console.error('Error saving snippet:', error);
-    } finally {
-      setIsGenerating(false);
-    }
+  // Handle view toggle
+  const handleViewToggle = (isJournal) => {
+    setCurrentView(isJournal ? 'journal' : 'snippets');
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="What's happening?"
-          value={snippetInput}
-          onChangeText={setSnippetInput}
-          multiline
-        />
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={addSnippet}
-          >
-            <Text style={styles.addButtonText}>Add</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <TabContainer activeTab={activeTab} setActiveTab={setActiveTab} />
-
-      {activeTab === 'summary' ? (
-        <JournalSummary summary={aiSummary} isGenerating={isGenerating} />
-      ) : (
-        <View style={styles.contentContainer}>
+      <ViewContainer
+        journalView={<JournalSummary summary={aiSummary} isGenerating={isGenerating} />}
+        snippetsView={
           <SnippetsList 
             snippets={snippets} 
-            emptyMessage="No snippets yet. Add your first snippet above!" 
+            emptyMessage="No snippets yet. Tap the + button to add your first snippet!" 
           />
-        </View>
-      )}
+        }
+        defaultToJournal={currentView === 'journal'}
+        onToggleView={handleViewToggle}
+      />
     </View>
   );
 }
@@ -121,38 +151,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 16,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    alignItems: 'flex-start',
-  },
-  buttonContainer: {
-    width: 60,
-    height: 40,
-    marginLeft: 8,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#f9f9f9',
-    minHeight: 40,
-    maxHeight: 100,
-  },
-  addButton: {
-    backgroundColor: '#333',
-    borderRadius: 8,
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  contentContainer: {
-    flex: 1,
-  }
 }); 

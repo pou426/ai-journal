@@ -259,13 +259,10 @@ const styles = StyleSheet.create({
   calendarContainer: {
     padding: 15,
     backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    marginBottom: 15,
+    marginBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+    paddingBottom: 20,
   },
   monthNavigationContainer: {
     flexDirection: 'row',
