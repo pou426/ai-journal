@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Dimensions
 } from 'react-native';
-import { DateUtils } from '../utils';
+import { DateUtils, SentimentUtils } from '../utils';
 
 const { width } = Dimensions.get('window');
 const CALENDAR_PADDING = 10;
@@ -83,7 +83,14 @@ const Calendar = ({
     }
 
     const isTodayAndSelected = day.isToday && day.isSelected;
-    const indicatorColor = day.isToday ? '#fff' : '#555';
+    
+    // Get the sentiment score for this date if available
+    const entryForDay = day.hasEntry ? entries.find(entry => entry.date === day.dateString) : null;
+    const sentimentScore = entryForDay?.sentiment_score;
+    
+    // Get the mood color for the indicator dot
+    const dotColor = sentimentScore !== undefined && sentimentScore !== null ? 
+      SentimentUtils.getSentimentInfo(sentimentScore).bgColor : '#888';
 
     return (
       <TouchableOpacity
@@ -111,7 +118,7 @@ const Calendar = ({
         </Text>
         {day.hasEntry && <View style={[
           styles.entryIndicator, 
-          { backgroundColor: indicatorColor }
+          { backgroundColor: dotColor }
         ]} />}
       </TouchableOpacity>
     );
@@ -356,10 +363,9 @@ const styles = StyleSheet.create({
   entryIndicator: {
     position: 'absolute',
     bottom: 8, 
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#555',
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
 });
 

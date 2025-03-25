@@ -1,5 +1,7 @@
 import DateUtils from './DateUtils';
+import SentimentUtils from './SentimentUtils';
 
 export {
-  DateUtils
+  DateUtils,
+  SentimentUtils
 }; 

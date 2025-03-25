@@ -6,53 +6,9 @@ import {
   ScrollView,
   ActivityIndicator
 } from 'react-native';
+import { DateUtils, SentimentUtils } from '../utils';
 
 const JournalSummary = ({ summary, isGenerating = false, sentimentScore, date }) => {
-  // Function to determine sentiment label, color, emoji, and background color
-  const getSentimentInfo = (score) => {
-    if (score === undefined || score === null) return { 
-      label: '', 
-      color: '#333', 
-      emoji: '',
-      bgColor: 'transparent'
-    };
-    
-    let label = '';
-    let color = '';
-    let emoji = '';
-    let bgColor = '';
-    
-    if (score > 0.5) {
-      label = 'Awesome';
-      color = '#333333';
-      bgColor = '#CBEBC0'; // Soft light green
-      emoji = '😄'; // Grinning face with smiling eyes
-    } else if (score > 0.2) {
-      label = 'Good';
-      color = '#333333';
-      bgColor = '#E0F5D7'; // Very light green
-      emoji = '🙂'; // Slightly smiling face
-    } else if (score < -0.5) {
-      label = 'Bad';
-      color = '#333333';
-      bgColor = '#FFCCCB'; // Light red/pink
-      emoji = '😞'; // Disappointed face
-    } else if (score < -0.2) {
-      label = 'Terrible';
-      color = '#333333';
-      bgColor = '#FFD8D7'; // Very light red
-      emoji = '😒'; // Unamused face
-    } else {
-      // Widened range: Scores between -0.2 and 0.2 are considered neutral
-      label = 'Neutral';
-      color = '#333333';
-      bgColor = '#E8E8E8'; // Light gray
-      emoji = '😐'; // Neutral face
-    }
-    
-    return { label, color, emoji, bgColor };
-  };
-  
   // Calculate the day of week index using useMemo to avoid recalculations
   const currentDayIndex = useMemo(() => {
     try {
@@ -78,7 +34,8 @@ const JournalSummary = ({ summary, isGenerating = false, sentimentScore, date })
     }
   }, [date]);
   
-  const { label, color, emoji, bgColor } = getSentimentInfo(sentimentScore);
+  // Get sentiment information from the centralized SentimentUtils
+  const { label, color, emoji, bgColor } = SentimentUtils.getSentimentInfo(sentimentScore);
   
   // Check if we have a valid sentiment score
   const hasValidScore = sentimentScore !== undefined && sentimentScore !== null;
@@ -131,8 +88,8 @@ const JournalSummary = ({ summary, isGenerating = false, sentimentScore, date })
               
               {hasValidScore && (
                 <View style={[styles.moodChip, { backgroundColor: bgColor }]}>
-                  <Text style={styles.sentimentEmoji}>{emoji}</Text>
-                  <Text style={styles.chipText}>{label}</Text>
+                  <Text style={[styles.sentimentEmoji, { color: color }]}>{emoji}</Text>
+                  <Text style={[styles.chipText, { color: color }]}>{label}</Text>
                 </View>
               )}
             </View>
