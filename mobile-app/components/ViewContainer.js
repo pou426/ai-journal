@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -26,20 +26,46 @@ const ViewContainer = ({
   switcherStyle
 }) => {
   const [showJournal, setShowJournal] = useState(defaultToJournal);
-  const fadeAnim = useState(new Animated.Value(1))[0];
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeOutAnimation = useRef(null);
+  const fadeInAnimation = useRef(null);
   
   // Update view if defaultToJournal prop changes
   useEffect(() => {
     setShowJournal(defaultToJournal);
   }, [defaultToJournal]);
 
+  // Clean up animations when component unmounts
+  useEffect(() => {
+    return () => {
+      // Remove animation listeners and stop animations
+      fadeAnim.removeAllListeners();
+      if (fadeOutAnimation.current) {
+        fadeOutAnimation.current.stop();
+      }
+      if (fadeInAnimation.current) {
+        fadeInAnimation.current.stop();
+      }
+    };
+  }, [fadeAnim]);
+
   const toggleView = () => {
+    // Stop any ongoing animations
+    if (fadeOutAnimation.current) {
+      fadeOutAnimation.current.stop();
+    }
+    if (fadeInAnimation.current) {
+      fadeInAnimation.current.stop();
+    }
+    
     // Fade out
-    Animated.timing(fadeAnim, {
+    fadeOutAnimation.current = Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 150,
       useNativeDriver: true,
-    }).start(() => {
+    });
+    
+    fadeOutAnimation.current.start(() => {
       // Toggle the view
       const newIsJournal = !showJournal;
       setShowJournal(newIsJournal);
@@ -50,11 +76,13 @@ const ViewContainer = ({
       }
       
       // Fade in
-      Animated.timing(fadeAnim, {
+      fadeInAnimation.current = Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 150,
         useNativeDriver: true,
-      }).start();
+      });
+      
+      fadeInAnimation.current.start();
     });
   };
 

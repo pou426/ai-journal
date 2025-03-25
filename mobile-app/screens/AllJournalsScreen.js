@@ -26,6 +26,7 @@ export default function AllJournalsScreen({ navigation, route }) {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [selectedJournal, setSelectedJournal] = useState('');
   const [selectedSnippets, setSelectedSnippets] = useState([]);
+  const [selectedSentimentScore, setSelectedSentimentScore] = useState(null);
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'snippets'
   const [isLoading, setIsLoading] = useState(false);
   
@@ -342,13 +343,16 @@ export default function AllJournalsScreen({ navigation, route }) {
     
     try {
       setIsLoading(true);
+      console.log('AllJournalsScreen - selectedDate:', selectedDate);
       
       // Fetch journal entry for the selected date
       const journalEntry = await JournalService.getJournalByDate(user.id, selectedDate);
       if (journalEntry) {
         setSelectedJournal(journalEntry.entry);
+        setSelectedSentimentScore(journalEntry.sentiment_score);
       } else {
         setSelectedJournal('');
+        setSelectedSentimentScore(null);
       }
       
       // Fetch snippets for the selected date
@@ -359,6 +363,7 @@ export default function AllJournalsScreen({ navigation, route }) {
       console.error('Error fetching selected date content:', error);
       setSelectedJournal('');
       setSelectedSnippets([]);
+      setSelectedSentimentScore(null);
     } finally {
       setIsLoading(false);
     }
@@ -453,7 +458,7 @@ export default function AllJournalsScreen({ navigation, route }) {
             </View>
           ) : (
             <ViewContainer
-              journalView={<JournalSummary summary={selectedJournal} />}
+              journalView={<JournalSummary summary={selectedJournal} sentimentScore={selectedSentimentScore} date={selectedDate} />}
               snippetsView={
                 <View style={styles.snippetsContainer}>
                   <SnippetsList 

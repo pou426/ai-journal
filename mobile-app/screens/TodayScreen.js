@@ -12,6 +12,7 @@ export default function TodayScreen({ navigation, route }) {
   const [snippets, setSnippets] = useState([]);
   const [aiSummary, setAiSummary] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [sentimentScore, setSentimentScore] = useState(null);
   const [currentView, setCurrentView] = useState('snippets'); // Track the active view
   const { user } = useAuth();
   const prevRefreshTrigger = useRef(0);
@@ -100,10 +101,12 @@ export default function TodayScreen({ navigation, route }) {
       const journalEntry = await JournalService.getJournalByDate(user.id, date);
       if (journalEntry) {
         setAiSummary(journalEntry.entry);
+        setSentimentScore(journalEntry.sentiment_score);
         setIsGenerating(false); // Turn off loading state when journal is loaded
       } else {
         // Clear the AI summary if there's no journal entry for today
         setAiSummary('');
+        setSentimentScore(null);
         
         // Check if we're in the process of generating a new journal
         if (isRefreshingJournal) {
@@ -119,6 +122,7 @@ export default function TodayScreen({ navigation, route }) {
       // Clear the AI summary on error
       setAiSummary('');
       setSnippets([]); // Reset snippets on error
+      setSentimentScore(null);
       setIsGenerating(false); // Turn off loading state on error
     }
   };
@@ -131,11 +135,18 @@ export default function TodayScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <ViewContainer
-        journalView={<JournalSummary summary={aiSummary} isGenerating={isGenerating} />}
+        journalView={
+          <JournalSummary 
+            summary={aiSummary} 
+            isGenerating={isGenerating}
+            sentimentScore={sentimentScore}
+            date={date}
+          />
+        }
         snippetsView={
           <SnippetsList 
             snippets={snippets} 
-            emptyMessage="No snippets yet. Tap the + button to add your first snippet!" 
+            emptyMessage="No snippets recorded today" 
           />
         }
         defaultToJournal={currentView === 'journal'}

@@ -100,11 +100,15 @@ def generate_day_snippets(date, user_id):
 def create_journal_entry(date, snippets, user_id):
     """Create a journal entry by concatenating all snippets for the day."""
     entries = [s['entry'] for s in snippets]
+    # Generate a random sentiment score between -1 and 1
+    sentiment_score = round(random.uniform(-1.0, 1.0), 2)
+    
     return {
         "id": str(uuid.uuid4()),
         "user_id": user_id,
         "date": date.date().isoformat(),
-        "entry": " ".join(entries)
+        "entry": " ".join(entries),
+        "sentiment_score": sentiment_score
     }
 
 def populate_sample_data(user_id, days=7, specific_date=None):

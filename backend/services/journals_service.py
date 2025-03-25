@@ -1,13 +1,14 @@
 from datetime import datetime, date
 import uuid
 from fastapi import HTTPException
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
+import traceback
 
 from .db_service import get_client
 from .ai_service import generate_journal_from_snippets
 from .snippets_service import get_todays_snippets
 
-async def create_or_update_journal(user_id: uuid.UUID, journal_date: date, entry: str) -> Dict[str, Any]:
+async def create_or_update_journal(user_id: uuid.UUID, journal_date: date, entry: str, sentiment_score: Optional[float] = None) -> Dict[str, Any]:
     """
     Create or update a journal entry for a specific date.
     
@@ -15,6 +16,7 @@ async def create_or_update_journal(user_id: uuid.UUID, journal_date: date, entry
         user_id: The user's UUID
         journal_date: The date of the journal entry
         entry: The journal entry text
+        sentiment_score: Optional sentiment score from -1 to 1
         
     Returns:
         The created or updated journal data
@@ -23,22 +25,29 @@ async def create_or_update_journal(user_id: uuid.UUID, journal_date: date, entry
         # Check if a journal entry exists for this date
         existing = get_client().table("journals").select("*").eq("user_id", str(user_id)).eq("date", journal_date.isoformat()).execute()
         
+        journal_data = {
+            "entry": entry
+        }
+        
+        # Add sentiment score if provided
+        if sentiment_score is not None:
+            journal_data["sentiment_score"] = sentiment_score
+        
         if existing.data:
             # Update existing journal
-            result = get_client().table("journals").update({
-                "entry": entry
-            }).eq("id", existing.data[0]["id"]).execute()
+            result = get_client().table("journals").update(journal_data).eq("id", existing.data[0]["id"]).execute()
         else:
             # Create new journal
-            data = {
+            journal_data.update({
                 "user_id": str(user_id),  # Convert UUID to string
-                "date": journal_date.isoformat(),
-                "entry": entry
-            }
-            result = get_client().table("journals").insert(data).execute()
+                "date": journal_date.isoformat()
+            })
+            result = get_client().table("journals").insert(journal_data).execute()
         
         return result.data[0]
     except Exception as e:
+        print(f"Error in create_or_update_journal: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 async def get_journal(user_id: uuid.UUID, journal_date: date) -> Optional[Dict[str, Any]]:
@@ -56,6 +65,8 @@ async def get_journal(user_id: uuid.UUID, journal_date: date) -> Optional[Dict[s
         result = get_client().table("journals").select("*").eq("user_id", str(user_id)).eq("date", journal_date.isoformat()).execute()
         return result.data[0] if result.data else None
     except Exception as e:
+        print(f"Error in get_journal: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 async def get_journals(user_id: uuid.UUID) -> List[Dict[str, Any]]:
@@ -72,6 +83,8 @@ async def get_journals(user_id: uuid.UUID) -> List[Dict[str, Any]]:
         result = get_client().table("journals").select("*").eq("user_id", str(user_id)).order("date", desc=True).execute()
         return result.data
     except Exception as e:
+        print(f"Error in get_journals: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 async def create_journal_from_snippets(user_id: uuid.UUID) -> Dict[str, Any]:
@@ -94,14 +107,20 @@ async def create_journal_from_snippets(user_id: uuid.UUID) -> Dict[str, Any]:
             
         # Generate AI summary using Gemini
         snippets_text = '\n\n'.join([s['entry'] for s in snippets])
-        ai_summary = generate_journal_from_snippets(snippets_text)
+        
+        try:
+            journal_text, sentiment_score = generate_journal_from_snippets(snippets_text)
+        except Exception as e:
+            print(f"Error generating journal with sentiment: {str(e)}")
+            print(traceback.format_exc())
+            # Fallback to a simple concatenation of snippets if AI generation fails
+            journal_text = ' '.join([s['entry'] for s in snippets])
+            sentiment_score = 0.0
         
         # Create or update the journal entry
         today = datetime.utcnow().date()
-        return await create_or_update_journal(user_id, today, ai_summary)
+        return await create_or_update_journal(user_id, today, journal_text, sentiment_score)
     except Exception as e:
-        import traceback
         print(f"Error in create_journal_from_snippets: {str(e)}")
-        print(f"Error type: {type(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e)) 

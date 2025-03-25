@@ -10,6 +10,7 @@ import { SnippetsList, JournalSummary, ViewContainer } from '../components';
 export default function ViewEntryScreen({ route, navigation }) {
   const [snippets, setSnippets] = useState([]);
   const [journal, setJournal] = useState('');
+  const [sentimentScore, setSentimentScore] = useState(null);
   const { user } = useAuth();
   
   // Get the date from the route params
@@ -17,6 +18,7 @@ export default function ViewEntryScreen({ route, navigation }) {
   
   useEffect(() => {
     if (user && date) {
+      console.log('ViewEntryScreen - date from params:', date);
       fetchEntry();
     }
   }, [user, date]);
@@ -44,14 +46,17 @@ export default function ViewEntryScreen({ route, navigation }) {
       const journalEntry = await JournalService.getJournalByDate(user.id, date);
       if (journalEntry) {
         setJournal(journalEntry.entry);
+        setSentimentScore(journalEntry.sentiment_score);
       } else {
         // Clear the journal content if there's no journal entry for the day
         setJournal('');
+        setSentimentScore(null);
       }
     } catch (error) {
       console.error('Error fetching entry:', error);
       setJournal('');
       setSnippets([]);
+      setSentimentScore(null);
     }
   };
 
@@ -74,7 +79,7 @@ export default function ViewEntryScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <ViewContainer
-        journalView={<JournalSummary summary={journal} />}
+        journalView={<JournalSummary summary={journal} sentimentScore={sentimentScore} date={date} />}
         snippetsView={
           <SnippetsList 
             snippets={snippets} 

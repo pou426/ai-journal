@@ -3,8 +3,7 @@ import {
   StyleSheet, 
   View, 
   Text, 
-  SectionList,
-  Animated
+  SectionList
 } from 'react-native';
 import { DateUtils } from '../utils';
 

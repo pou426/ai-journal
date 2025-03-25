@@ -68,15 +68,33 @@ async def get_snippets(user_id: uuid.UUID):
 # Journals endpoints
 @app.post("/journals", response_model=JournalResponse)
 async def create_or_update_journal(journal: Journal):
-    return await journals_service.create_or_update_journal(journal.user_id, journal.date, journal.entry)
+    try:
+        return await journals_service.create_or_update_journal(journal.user_id, journal.date, journal.entry, journal.sentiment_score)
+    except Exception as e:
+        print(f"Error in create_or_update_journal endpoint: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/journals/{user_id}/{date}", response_model=Optional[JournalResponse])
 async def get_journal(user_id: uuid.UUID, date: date):
-    return await journals_service.get_journal(user_id, date)
+    try:
+        return await journals_service.get_journal(user_id, date)
+    except Exception as e:
+        print(f"Error in get_journal endpoint: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/journals/{user_id}", response_model=List[JournalResponse])
 async def get_journals(user_id: uuid.UUID):
-    return await journals_service.get_journals(user_id)
+    try:
+        return await journals_service.get_journals(user_id)
+    except Exception as e:
+        print(f"Error in get_journals endpoint: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Rate limited endpoint for Gemini API
 # We need to store the snippet before the rate limiter dependency processes the request
@@ -109,4 +127,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, timeout_keep_alive=120)

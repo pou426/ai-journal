@@ -12,6 +12,7 @@ class Journal(BaseModel):
     entry: str
     date: date
     user_id: uuid.UUID
+    sentiment_score: Optional[float] = None
 
 # Response models
 class SnippetResponse(BaseModel):
@@ -24,4 +25,5 @@ class JournalResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     date: date
-    entry: str 
+    entry: str
+    sentiment_score: Optional[float] = None 
