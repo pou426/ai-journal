@@ -112,9 +112,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   summaryText: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#333',
-    lineHeight: 20,
+    lineHeight: 22,
     marginTop: 8,
   },
   loadingContainer: {

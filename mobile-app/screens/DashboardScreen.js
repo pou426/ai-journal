@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   loadingContainer: {
-    padding: 40,
+    padding: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -160,21 +160,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingVertical: 16,
-    paddingHorizontal: 24,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
   statItem: {
     alignItems: 'center',
     flex: 1,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '600',
     color: '#333',
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#666',
   },
   statDivider: {

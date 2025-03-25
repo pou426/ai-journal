@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useJournal, useAuth } from '../context';
 import { JournalService, SnippetService } from '../services';
-import { DateUtils } from '../utils';
+import { DateUtils, SentimentUtils } from '../utils';
 import { JournalSummary, SnippetsList, Calendar, ViewContainer } from '../components';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -291,6 +291,9 @@ export default function AllJournalsScreen({ navigation, route }) {
     const isToday = item.date ? DateUtils.isToday(item.date) : false;
     const dateParts = parseDateComponents(item.date);
     
+    // Get mood color based on sentiment score
+    const { bgColor } = SentimentUtils.getSentimentInfo(item.sentiment_score);
+    
     return (
       <TouchableOpacity 
         style={[
@@ -317,6 +320,10 @@ export default function AllJournalsScreen({ navigation, route }) {
         <View style={styles.dateContainer}>
           <Text style={styles.dateDay}>{dateParts.day}</Text>
           <Text style={styles.dateWeekday}>{dateParts.weekday}</Text>
+          {/* Mood indicator */}
+          <View style={styles.moodIndicatorContainer}>
+            <View style={[styles.moodIndicator, { backgroundColor: bgColor }]} />
+          </View>
         </View>
         
         {/* Content section */}
@@ -515,7 +522,7 @@ const styles = StyleSheet.create({
   },
   // Year header styles
   yearHeader: {
-    paddingVertical: 4,
+    paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -523,8 +530,8 @@ const styles = StyleSheet.create({
   },
   yearHeaderText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#888',
+    fontWeight: '600',
+    color: '#666',
   },
   // Date container styles for list view
   dateContainer: {
@@ -535,24 +542,26 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   dateDay: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '600',
     color: '#333',
+    marginBottom: 2,
   },
   dateWeekday: {
     fontSize: 13,
     fontWeight: '600',
     color: '#555',
-    marginTop: 2,
+    marginBottom: 2,
   },
-  todayIndicator: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#444',
+  moodIndicatorContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  moodIndicator: {
+    width: 12,
+    height: 3,
+    borderRadius: 1.5,
   },
   // Content container styles
   contentContainer: {
@@ -565,7 +574,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   contentTextWithBadge: {
-    marginTop: 8,
+    marginTop: 6,
   },
   // Common TODAY badge styles used in both list and calendar views
   todayBadge: {
@@ -597,12 +606,12 @@ const styles = StyleSheet.create({
   },
   // Selected entry styles
   selectedEntryContainer: {
-    marginTop: 10,
-    marginHorizontal: 15,
-    marginBottom: 15,
+    marginTop: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   selectedEntryHeader: {
-    marginBottom: 16,
+    marginBottom: 12,
     paddingHorizontal: 2,
   },
   dateRow: {
@@ -617,7 +626,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#444',
-    marginRight: 10,
+    marginRight: 8,
   },
   dateText: {
     fontSize: 13,

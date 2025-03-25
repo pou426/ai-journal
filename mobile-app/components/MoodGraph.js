@@ -242,7 +242,7 @@ const MoodGraph = ({ journalEntries = [] }) => {
 const styles = StyleSheet.create({
   container: {
     padding: 8,
-    marginVertical: 8,
+    marginVertical: 12,
   },
   header: {
     flexDirection: 'row',
@@ -252,8 +252,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   title: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
   },
   viewToggle: {
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#555',
   },
   toggleText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#777',
   },
   activeToggleText: {
