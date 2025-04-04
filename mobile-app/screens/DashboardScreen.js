@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   StyleSheet, 
   View, 
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   Text
@@ -112,29 +111,21 @@ export default function DashboardScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {isLoading && !refreshing ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4CAF50" />
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.totalEntries}</Text>
+            <Text style={styles.statLabel}>Total Entries</Text>
           </View>
-        ) : (
-          <>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.totalEntries}</Text>
-                <Text style={styles.statLabel}>Total Entries</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{stats.currentStreak}</Text>
-                <Text style={styles.statLabel}>Day Streak</Text>
-              </View>
-            </View>
-            
-            <MoodGraph 
-              journalEntries={entries}
-            />
-          </>
-        )}
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.currentStreak}</Text>
+            <Text style={styles.statLabel}>Day Streak</Text>
+          </View>
+        </View>
+        
+        <MoodGraph 
+          journalEntries={entries}
+        />
       </ScrollView>
     </View>
   );
@@ -149,11 +140,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 12,
     paddingBottom: 20,
-  },
-  loadingContainer: {
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   statsContainer: {
     flexDirection: 'row',
