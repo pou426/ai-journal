@@ -172,6 +172,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 32,
     backgroundColor: 'white',
+    marginTop: -50,
   },
   emptyText: {
     color: '#999',

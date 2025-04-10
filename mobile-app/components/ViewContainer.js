@@ -88,23 +88,35 @@ const ViewContainer = ({
 
   return (
     <View style={[styles.container, style]}>
-      {/* View toggle controls */}
-      <ViewSwitcher
-        showJournal={showJournal}
-        onToggle={toggleView}
-        style={switcherStyle}
-      />
+      {/* View toggle controls - now in a separate container */}
+      <View style={styles.switcherContainer}>
+        <ViewSwitcher
+          showJournal={showJournal}
+          onToggle={toggleView}
+          style={switcherStyle}
+        />
+      </View>
 
-      {/* Content with fade animation */}
-      <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
-        {showJournal ? journalView : snippetsView}
-      </Animated.View>
+      {/* Content with fade animation in its own container */}
+      <View style={styles.contentWrapper}>
+        <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
+          {showJournal ? journalView : snippetsView}
+        </Animated.View>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  switcherContainer: {
+    // Ensure the switcher stays at the top
+    zIndex: 1,
+    backgroundColor: 'white', // Add background color to prevent content showing through
+  },
+  contentWrapper: {
     flex: 1,
   },
   contentContainer: {

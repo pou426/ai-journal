@@ -141,6 +141,7 @@ export default function TodayScreen({ navigation, route }) {
             isGenerating={isGenerating}
             sentimentScore={sentimentScore}
             date={date}
+            emptyMessage="No journal entry generated yet. Add some snippets to generate a journal entry!"
           />
         }
         snippetsView={
@@ -151,6 +152,7 @@ export default function TodayScreen({ navigation, route }) {
         }
         defaultToJournal={currentView === 'journal'}
         onToggleView={handleViewToggle}
+        alwaysShowTabs={true}
       />
     </View>
   );

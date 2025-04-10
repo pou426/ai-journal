@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { DateUtils, SentimentUtils } from '../utils';
 
-const JournalSummary = ({ summary, isGenerating = false, sentimentScore, date }) => {
+const JournalSummary = ({ summary, isGenerating = false, sentimentScore, date, emptyMessage }) => {
   // Calculate the day of week index using useMemo to avoid recalculations
   const currentDayIndex = useMemo(() => {
     try {
@@ -70,34 +70,39 @@ const JournalSummary = ({ summary, isGenerating = false, sentimentScore, date })
   
   return (
     <View style={styles.summaryContainer}>
-      <ScrollView 
-        style={styles.summaryScroll}
-        showsVerticalScrollIndicator={true}
-      >
-        {isGenerating ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#333" />
-            <Text style={styles.loadingText}>Generating AI Summary...</Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.metadataContainer}>
-              <View style={styles.weekdayCard}>
-                {renderDaysOfWeek()}
-              </View>
-              
-              {hasValidScore && (
-                <View style={[styles.moodChip, { backgroundColor: bgColor }]}>
-                  <Text style={[styles.sentimentEmoji, { color: color }]}>{emoji}</Text>
-                  <Text style={[styles.chipText, { color: color }]}>{label}</Text>
-                </View>
-              )}
+      {isGenerating ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#333" />
+          <Text style={styles.loadingText}>Generating AI Summary...</Text>
+        </View>
+      ) : (
+        <ScrollView 
+          style={styles.summaryScroll}
+          contentContainerStyle={summary ? {} : styles.emptyScrollContent}
+          showsVerticalScrollIndicator={true}
+        >
+          <View style={styles.metadataContainer}>
+            <View style={styles.weekdayCard}>
+              {renderDaysOfWeek()}
             </View>
             
+            {hasValidScore && (
+              <View style={[styles.moodChip, { backgroundColor: bgColor }]}>
+                <Text style={[styles.sentimentEmoji, { color: color }]}>{emoji}</Text>
+                <Text style={[styles.chipText, { color: color }]}>{label}</Text>
+              </View>
+            )}
+          </View>
+          
+          {summary ? (
             <Text style={styles.summaryText}>{summary}</Text>
-          </>
-        )}
-      </ScrollView>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>{emptyMessage}</Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -184,7 +189,23 @@ const styles = StyleSheet.create({
   sentimentEmoji: {
     fontSize: 16,
     marginRight: 3,
-  }
+  },
+  emptyScrollContent: {
+    flexGrow: 1, // Makes the ScrollView take up all available space
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    marginTop: -30, // Offset for the metadata container to achieve better vertical centering
+  },
+  emptyText: {
+    color: '#999',
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
 });
 
 export default JournalSummary; 
