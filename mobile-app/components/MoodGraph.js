@@ -10,6 +10,14 @@ import { SentimentUtils } from '../utils';
 
 const { width: screenWidth } = Dimensions.get('window');
 
+const DottedLine = () => (
+  <View style={styles.dottedLine}>
+    {Array(50).fill(0).map((_, i) => (
+      <View key={i} style={styles.dot} />
+    ))}
+  </View>
+);
+
 const MoodGraph = ({ journalEntries = [] }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'month'
   
@@ -168,7 +176,9 @@ const MoodGraph = ({ journalEntries = [] }) => {
                 styles.gridLine, 
                 { top: (180 / 4) * (4 - label.value) }
               ]}
-            />
+            >
+              <DottedLine />
+            </View>
           ))}
           
           {/* Data points */}
@@ -285,7 +295,7 @@ const styles = StyleSheet.create({
   },
   yAxisContainer: {
     width: 36,
-    height: 180,
+    height: 200,
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingRight: 0,
@@ -307,26 +317,39 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   gridLine: {
+    marginTop: 10,
     position: 'absolute',
     left: 0,
     right: 0,
     height: 1,
+  },
+  dottedLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+  },
+  dot: {
+    width: 2,
+    height: 2,
+    borderRadius: 1,
     backgroundColor: '#e0e0e0',
   },
   plotArea: {
     flex: 1,
     height: 180,
     position: 'relative',
+    marginTop: 10,
   },
   dataPoint: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.5,
+    width: 14,
+    height: 14,
+    borderRadius: 6,
+    borderWidth: 1,
     borderColor: 'white',
     marginLeft: -5,
-    marginTop: -5,
+    marginTop: -6,
     zIndex: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
