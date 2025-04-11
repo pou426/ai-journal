@@ -56,46 +56,37 @@ export default function DashboardScreen({ navigation }) {
     // Total entries
     const totalEntries = entries.length;
     
-    // Calculate streak
     // Sort entries by date (newest first)
     const sortedEntries = [...entries].sort((a, b) => 
       new Date(b.date) - new Date(a.date)
     );
     
-    // Get all unique dates as strings (YYYY-MM-DD format)
+    // Get all unique dates
     const entryDates = [...new Set(sortedEntries.map(entry => entry.date))];
     
-    // Get today's date
+    // Get today's date in local timezone and format it to match entry dates
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayString = today.toISOString().split('T')[0];
+    const todayString = today.toLocaleDateString('en-CA'); // YYYY-MM-DD format
     
-    // Check if there's an entry for today
-    const hasTodayEntry = entryDates.includes(todayString);
-    
-    // Start counting streak
-    let currentStreak = 0;
-    let currentDate = new Date(today);
-    
-    // If no entry today, we'll start checking from yesterday
-    if (!hasTodayEntry) {
-      currentDate.setDate(currentDate.getDate() - 1);
+    // First check if there's an entry today
+    if (!entryDates.includes(todayString)) {
+      return { totalEntries, currentStreak: 0 };
     }
     
-    // Check consecutive days 
-    let keepChecking = true;
+    // If we have an entry today, start counting streak
+    let currentStreak = 1; // Start with 1 for today's entry
+    let checkDate = new Date(today);
+    checkDate.setDate(checkDate.getDate() - 1); // Start checking from yesterday
     
-    while (keepChecking) {
-      const dateString = currentDate.toISOString().split('T')[0];
+    while (true) {
+      const dateString = checkDate.toLocaleDateString('en-CA');
       
-      // Check if this date has an entry
       if (entryDates.includes(dateString)) {
         currentStreak++;
-        // Move to previous day
-        currentDate.setDate(currentDate.getDate() - 1);
+        checkDate.setDate(checkDate.getDate() - 1);
       } else {
-        // Chain broken
-        keepChecking = false;
+        break;
       }
     }
     

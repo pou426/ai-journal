@@ -24,7 +24,7 @@ def generate_journal_from_snippets(snippets_text: str) -> Tuple[str, float]:
         - AI-generated journal entry
         - Sentiment score from -1 (negative) to 1 (positive)
     """
-    prompt = f"Summarise these daily snippets into a concise and coherent journal entry in a reflective and personal tone. Write in first person and start directly with the content. Do not include any introductory text, meta-commentary, or explanations:\n\n${snippets_text}"
+    prompt = f"Summarise these daily snippets into a concise and coherent journal entry in a reflective and personal tone using only explicitly stated information. Write in first person and start directly with the content. Do not include any introductory text, meta-commentary, or explanations:\n\n${snippets_text}"
     
     response = model.generate_content(prompt)
     journal_text = response.text

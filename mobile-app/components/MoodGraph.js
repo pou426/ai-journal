@@ -62,6 +62,7 @@ const MoodGraph = ({ journalEntries = [] }) => {
     // Filter entries based on date range
     const filteredEntries = sortedEntries.filter(entry => {
       const entryDate = new Date(entry.date);
+      entryDate.setHours(0, 0, 0, 0); // Normalize time
       return entryDate >= startDate && entryDate <= today;
     });
     
@@ -74,7 +75,7 @@ const MoodGraph = ({ journalEntries = [] }) => {
     const daysCount = viewMode === 'week' ? 7 : 30;
     
     for (let i = 0; i < daysCount; i++) {
-      const dateString = currentDate.toISOString().split('T')[0];
+      const dateString = currentDate.toLocaleDateString('en-CA'); // Use consistent date format
       
       // Format date for display based on view mode
       const displayDate = viewMode === 'week'
