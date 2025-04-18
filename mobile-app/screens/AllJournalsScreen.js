@@ -6,7 +6,6 @@ import {
   FlatList, 
   TouchableOpacity, 
   RefreshControl,
-  ScrollView,
   Dimensions,
   ActivityIndicator
 } from 'react-native';
@@ -29,12 +28,6 @@ export default function AllJournalsScreen({ navigation, route }) {
   const [selectedSentimentScore, setSelectedSentimentScore] = useState(null);
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' or 'snippets'
   const [isLoading, setIsLoading] = useState(false);
-  
-  // Initialize currentMonth using UTC to avoid timezone issues
-  const today = new Date();
-  const [currentMonth, setCurrentMonth] = useState(
-    new Date(Date.UTC(today.getFullYear(), today.getMonth(), 1))
-  );
   
   const { lastUpdate } = useJournal();
   const { user } = useAuth();
@@ -233,49 +226,6 @@ export default function AllJournalsScreen({ navigation, route }) {
     setSelectedEntry(entry || null);
   }, [selectedDate, entries]);
 
-  // Check if a month is the current month or in the future
-  const isCurrentOrFutureMonth = (year, month) => {
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth();
-    
-    // Return true if it's the current month or a future month
-    return (year > currentYear) || (year === currentYear && month >= currentMonth);
-  };
-
-  // Navigate to previous month
-  const goToPreviousMonth = () => {
-    // Check if we can navigate to previous month (not beyond the earliest entry month)
-    if (visibleMonthIndex < calendarMonths.length - 1) {
-      setVisibleMonthIndex(visibleMonthIndex + 1);
-      // Update currentMonth state when navigating
-      const prevMonth = calendarMonths[visibleMonthIndex + 1];
-      setCurrentMonth(new Date(Date.UTC(prevMonth.year, prevMonth.month, 1)));
-    }
-  };
-
-  // Navigate to next month
-  const goToNextMonth = () => {
-    // Check if we can navigate to next month (not beyond current month)
-    if (visibleMonthIndex > 0) {
-      // Get the next month data
-      const nextMonth = calendarMonths[visibleMonthIndex - 1];
-      
-      // Don't allow navigation to or beyond the current month
-      const today = new Date();
-      const currentYear = today.getFullYear();
-      const currentMonth = today.getMonth();
-      
-      if (nextMonth.year > currentYear || 
-         (nextMonth.year === currentYear && nextMonth.month > currentMonth)) {
-        return;
-      }
-      
-      setVisibleMonthIndex(visibleMonthIndex - 1);
-      setCurrentMonth(new Date(Date.UTC(nextMonth.year, nextMonth.month, 1)));
-    }
-  };
-
   // List view render functions
   const renderListItem = ({ item }) => {
     if (item.type === 'monthHeader') {
@@ -402,33 +352,30 @@ export default function AllJournalsScreen({ navigation, route }) {
         />
       );
     } else {
-      // Fix nested VirtualizedList error by using a non-scrolling View for calendar
-      // and a separate FlatList for the selected entry content
       return (
-        <View style={styles.calendarView}>
-          <FlatList
-            data={[{ id: 'calendar-header' }]}
-            keyExtractor={item => item.id}
-            renderItem={() => (
-              <View>
-                <Calendar
-                  entries={entries}
-                  selectedDate={selectedDate}
-                  setSelectedDate={setSelectedDate}
-                  calendarMonths={calendarMonths}
-                  visibleMonthIndex={visibleMonthIndex}
-                  setVisibleMonthIndex={setVisibleMonthIndex}
-                />
-                {renderSelectedEntry()}
-              </View>
-            )}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-            style={styles.calendarScrollView}
-            contentContainerStyle={styles.calendarScrollContent}
-          />
-        </View>
+        <FlatList
+          data={[{ id: 'calendar-header' }]}
+          keyExtractor={item => item.id}
+          renderItem={() => (
+            <View style={styles.calendarContainer}>
+              <Calendar
+                entries={entries}
+                selectedDate={selectedDate}
+                setSelectedDate={setSelectedDate}
+                calendarMonths={calendarMonths}
+                visibleMonthIndex={visibleMonthIndex}
+                setVisibleMonthIndex={setVisibleMonthIndex}
+              />
+              {renderSelectedEntry()}
+            </View>
+          )}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          style={styles.calendarScrollView}
+          contentContainerStyle={styles.calendarScrollContent}
+          showsVerticalScrollIndicator={true}
+        />
       );
     }
   };
@@ -595,14 +542,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   // Calendar view styles
-  calendarView: {
-    flex: 1,
+  calendarContainer: {
+    paddingBottom: 150, // Add significant padding to ensure scrollability
   },
   calendarScrollView: {
     flex: 1,
   },
   calendarScrollContent: {
-    paddingBottom: 20,
+    flexGrow: 1,
+    paddingBottom: 100,
   },
   // Selected entry styles
   selectedEntryContainer: {
