@@ -2,7 +2,23 @@
 
 This AI-powered journaling app turns short daily snippets into complete entries effortlessly. It also tracks mood with AI-driven sentiment analysis, offering a dashboard for insights into your emotional well-being.
 
-<!-- TODO: Add screenshots and videos -->
+<div align="center">
+  <img src="docs/images/3_1_today_journal.png" alt="Today's journal" width="250"/>
+  <img src="docs/images/3_2_today_snippets.png" alt="Today's snippets" width="250"/>
+  <img src="docs/images/3_3_new_snippet.png" alt="Add new snippet" width="250"/>
+</div>
+
+<div align="center">
+  <img src="docs/images/4_1_all_journals_list.png" alt="All journals (list view)" width="250"/>
+  <img src="docs/images/4_2_all_journals_calendar.png" alt="All journals (calendar view)" width="250"/>
+  <img src="docs/images/5_dashboard.png" alt="Dashboard" width="250"/>
+</div>
+
+<div align="center">
+  <img src="docs/images/1_homepage_signin.png" alt="Homepage signin" width="250"/>
+  <img src="docs/images/2_signin_with_google.png" alt="Signin with Google" width="250"/>
+  <img src="docs/images/6_settings.png" alt="Settings" width="250"/>
+</div>
 
 ## Infrastructure Overview
 
